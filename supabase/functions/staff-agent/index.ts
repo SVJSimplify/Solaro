@@ -6,6 +6,7 @@ import {buildRegistry,runToolLoop} from '../_shared/tools/index.js';
 import {supabaseAdapter} from '../_shared/tools/supabaseAdapter.js';
 import {callModelRaw} from '../_shared/agent.js';
 import {staffSystem,SETUP_GUIDE} from '../_shared/tools/prompt.js';
+import {logEvent,allow} from '../_shared/ops.js';
 
 const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type'};
 const J=(b:unknown,s=200)=>new Response(JSON.stringify(b),{status:s,headers:{...cors,'Content-Type':'application/json'}});
@@ -32,22 +33,25 @@ Deno.serve(async req=>{
   if(!Array.isArray(msgs)||!msgs.length||msgs.length>40||msgs.some((m:any)=>!['user','assistant'].includes(m?.role)||typeof m.content!=='string'||m.content.length>12000))return J({error:'Bad request'},400);
 
   const svc=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+  if(!await allow(svc,'staff:user:'+user.id,30,60))return J({error:'Too many requests. Please wait a moment.'},429);
   const pv:any=await orgProvider(svc,orgId);
   if(pv.error)return J({error:pv.error},pv.status);
 
   try{
     const db=supabaseAdapter(sb);
     const out={confirmations:[] as any[]};
+    const t0=Date.now(),requestId=crypto.randomUUID(),attempts:any[]=[];
     const timeZone=(await db.orgTimezone(orgId))??'UTC';
     const res=await withTimeout(runToolLoop({
-      callModel:(m:any,t:any)=>callModelRaw({...pv.provider,maxTokens:2000,reasoningEffort:'none'},m,t),
+      callModel:(m:any,t:any)=>callModelRaw({...pv.provider,maxTokens:2000,reasoningEffort:'none',onAttempt:(a:any)=>attempts.push(a)},m,t),
       registry,db,role,surface:'staff',
-      ctx:{orgId,userId:user.id,timeZone,out,requestId:crypto.randomUUID()},
+      ctx:{orgId,userId:user.id,timeZone,out,requestId},
       system:staffSystem({org:(mem[0] as any).organizations?.name??'this clinic',role,today:new Intl.DateTimeFormat('en-CA',{timeZone}).format(new Date()),timeZone})+(body.mode==='setup'?'\n\n'+SETUP_GUIDE:''),
       messages:msgs.map((m:any)=>({role:m.role,content:m.content})),
       // Setup messages can hold a whole pasted document, so allow enough steps to save every item.
       maxSteps:body.mode==='setup'?24:8,
     }),body.mode==='setup'?110000:50000);
+    logEvent('staff-agent',{org:orgId,requestId,mode:body.mode??'chat',outcome:res.stopped??'ok',ms:Date.now()-t0,tools:res.calls.map((c:any)=>c.ok?c.name:c.name+':'+c.code),attempts});
     return J({reply:res.reply,calls:res.calls,stopped:res.stopped,confirmations:out.confirmations});
-  }catch(e){const t=String(e).includes('timeout');console.error('staff-agent failed',String(e));return J({error:t?'The assistant took too long. Try again.':'The assistant is unavailable. Try again shortly.'},t?504:502)}
+  }catch(e){const t=String(e).includes('timeout');logEvent('staff-agent',{org:orgId,outcome:t?'timeout':'failed',error:String(e).slice(0,200)});return J({error:t?'The assistant took too long. Try again.':'The assistant is unavailable. Try again shortly.'},t?504:502)}
 });

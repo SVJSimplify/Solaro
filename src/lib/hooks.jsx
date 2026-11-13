@@ -8,7 +8,8 @@ export const useAuth=()=>useContext(AuthCtx),useToast=()=>useContext(ToastCtx);
 export function useTable(t){
   const {user}=useAuth(),[rows,set]=useState([]);
   const load=useCallback(()=>db.list(t,user.id).then(set),[t,user.id]);
-  useEffect(()=>{load();addEventListener('solara',load);return()=>removeEventListener('solara',load)},[load]);
+  // Reload only when this table changed (or when the event does not say which table, as in the local demo).
+  useEffect(()=>{const on=e=>{const x=e?.detail?.table;if(!x||x===t)load()};load();addEventListener('solara',on);return()=>removeEventListener('solara',on)},[load,t]);
   return [rows];
 }
 export function ToastProvider({children}){

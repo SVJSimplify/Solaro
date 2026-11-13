@@ -11,5 +11,8 @@ export async function orgProvider(svc:any, orgId:string){
   if(aErr)return{error:'Could not check the AI limit',status:500};
   if(!allowed)return{error:'Daily AI limit reached for this clinic. It resets tomorrow.',status:429};
   const {data:org}=await svc.from('organizations').select('model').eq('id',orgId).single();
-  return{provider:{endpoint,key,model:org?.model||Deno.env.get('LLM_MODEL')||''}};
+  // Optional second provider, tried when the first keeps failing (outage, rate limit, timeouts).
+  const fb=Deno.env.get('LLM_FALLBACK_BASE_URL'),fbKey=Deno.env.get('LLM_FALLBACK_API_KEY');
+  const fallback=fb&&fbKey?{endpoint:fb,key:fbKey,model:Deno.env.get('LLM_FALLBACK_MODEL')||''}:undefined;
+  return{provider:{endpoint,key,model:org?.model||Deno.env.get('LLM_MODEL')||'',fallback}};
 }

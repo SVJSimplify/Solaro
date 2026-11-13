@@ -111,9 +111,14 @@ export function supabaseAdapter(sb){
 
     /* The clinic's live configuration and bookings, which the booking engine reads. */
     legacy:{
-      async list(orgId,table){
+      /* Bookings can be narrowed: opts.from / opts.to (YYYY-MM-DD, to exclusive) and opts.phone. All use indexes. */
+      async list(orgId,table,opts={}){
         const order=table==='doctors'||table==='services'||table==='kb'||table==='closures'?'created_at':'starts_at';
-        return must(await sb.from(LEGACY_TABLE[table]).select('*').eq('org_id',orgId).order(order),{read:true}).map(FROM[table]);
+        let q=sb.from(LEGACY_TABLE[table]).select('*').eq('org_id',orgId);
+        if(table==='bookings'&&opts.from)q=q.gte('starts_at',opts.from);
+        if(table==='bookings'&&opts.to)q=q.lt('starts_at',opts.to);
+        if(table==='bookings'&&opts.phone)q=q.eq('phone',opts.phone);
+        return must(await q.order(order).limit(table==='bookings'?20000:2000),{read:true}).map(FROM[table]);
       },
       async addBooking(orgId,b){
         const r=must(await sb.from('bookings').insert({org_id:orgId,name:b.name,phone:b.phone,service:b.service||'',starts_at:b.when,doctor_id:b.doctor_id||null,doctor:b.doctor||'',status:b.status||'booked',source:b.source||'staff',conversation_id:b.conversation_id||null}).select().single());
@@ -160,7 +165,7 @@ export function publicAdapter(svc,orgId,conversationId){
         detail:{text:String(text??'').slice(0,500),source:'website'}}));
     },
     legacy:{
-      async list(_o,table){if(!READ.has(table))throw new ToolError('PERMISSION_DENIED','Not available.',{retryable:false});return all.legacy.list(orgId,table)},
+      async list(_o,table,opts){if(!READ.has(table))throw new ToolError('PERMISSION_DENIED','Not available.',{retryable:false});return all.legacy.list(orgId,table,opts)},
       addBooking:(_o,b)=>all.legacy.addBooking(orgId,{...b,source:'website',conversation_id:conversationId}),
       // Patient self-service: the tools have already checked the booking is on the verified phone number.
       setBookingStatus:(_o,id,status)=>all.legacy.setBookingStatus(orgId,id,status),

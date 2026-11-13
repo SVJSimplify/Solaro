@@ -30,6 +30,7 @@ export const local=(()=>{
    /* supabase.from(t).update(patch).eq('id',id) */
    async patch(t,i,p){const s=st(),r=s[t].find(x=>x.id===i);Object.assign(r,p);S(s);return r},
    /* supabase.from(t).delete().eq('id',id) */
+   async claim(t,i,when,set){const s=st(),r=s[t].find(x=>x.id===i);if(!r||Object.entries(when).some(([k,v])=>(r[k]??false)!==v))return false;Object.assign(r,set);S(s);return true},
    async del(t,i){if(t==='doctors')throw Error('Doctors are removed only through a confirmation card.');const s=st();s[t]=s[t].filter(x=>x.id!==i);S(s)},
    /* Demo-mode equivalents of the server functions. One write at the end, so a failed import changes nothing. */
    async importSetup(uid,p,replace=false){

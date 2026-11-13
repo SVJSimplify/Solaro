@@ -142,7 +142,8 @@ export default function Widget(){
           localStorage.setItem(key,JSON.stringify(c));
           setName(row.org_name);setGreeting(row.greeting);
         }else{
-          const [o]=await fetch(URL+'/rest/v1/rpc/widget_start',{method:'POST',headers,body:JSON.stringify({org})}).then(r=>r.ok?r.json():[{}]).catch(()=>[{}]);
+          // Read-only lookup: resuming a chat must not create a new one.
+          const [o]=await fetch(URL+'/rest/v1/rpc/widget_info',{method:'POST',headers,body:JSON.stringify({org})}).then(r=>r.ok?r.json():[{}]).catch(()=>[{}]);
           if(o?.org_name){setName(o.org_name);setGreeting(o.greeting)}
         }
         setChat(c);

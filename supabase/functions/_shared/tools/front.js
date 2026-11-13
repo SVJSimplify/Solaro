@@ -34,9 +34,13 @@ export const blockedFor=(d,when,ex)=>ex.some(e=>e.on_date===dateOf(when)&&covers
   ((e.kind==='closure'&&!e.doctor_id)||((e.kind==='leave'||e.kind==='unavailable'||e.kind==='closure')&&e.doctor_id===d.id)));
 const freeDoctors=(doctors,when,ex)=>doctors.filter(d=>!blockedFor(d,when,ex));
 
-const loadAll=async(c,db)=>{
+/* Reads only what a call needs. Routing or offering a slot needs that one day's bookings, never the whole history
+   (which grows forever); validation needs no bookings at all. */
+const nextDay=d=>{const x=new Date(d+'T00:00:00Z');x.setUTCDate(x.getUTCDate()+1);return x.toISOString().slice(0,10)};
+const loadAll=async(c,db,{date,bookings:want=true}={})=>{
   const L=db.legacy, from=nowLocal(c).slice(0,10);
-  const [doctors,bookings,services,closures,ex]=await Promise.all([L.list(c.orgId,'doctors'),L.list(c.orgId,'bookings'),L.list(c.orgId,'services'),L.list(c.orgId,'closures'),
+  const range=date?{from:date,to:nextDay(date)}:{from};
+  const [doctors,bookings,services,closures,ex]=await Promise.all([L.list(c.orgId,'doctors'),want?L.list(c.orgId,'bookings',range):Promise.resolve([]),L.list(c.orgId,'services'),L.list(c.orgId,'closures'),
     db.confirmedExceptions?db.confirmedExceptions(c.orgId,from):Promise.resolve([])]);
   // A clinic-wide closure for the whole day closes the clinic, exactly like a closed day set on the Bookings page.
   const closed=[...new Set([...closures.map(x=>x.date),...ex.filter(e=>e.kind==='closure'&&!e.doctor_id&&e.start_min==null).map(e=>e.on_date)])];
@@ -62,7 +66,7 @@ async function bookingNormalise(raw,c){
 async function bookingPreconditions(a,c,db){
     if(!a.name)throw new ToolError('MISSING_INFORMATION','Name is required.',{field:'name'});
     if(a.when<nowLocal(c))throw new ToolError('PRECONDITION_FAILED','That time has already passed.',{field:'when',nextStep:'Ask for a future time.'});
-    const {services,closed}=await loadAll(c,db);
+    const {services,closed}=await loadAll(c,db,{bookings:false});
     if(closed.includes(dateOf(a.when)))throw new ToolError('PRECONDITION_FAILED','The business is closed that day.',{field:'when',nextStep:'Ask for another date.'});
     if(services.length&&!services.includes(a.service))throw new ToolError('INVALID_ARGUMENT',`That service is not offered.`,{field:'service',alternatives:services,nextStep:'Pick one of the services offered.'});
 }
@@ -103,7 +107,7 @@ export const checkAvailability=def({name:'check_availability',public:true,patien
   input:{type:'object',additionalProperties:false,required:['date'],properties:{date:DATE,service:{type:'string',maxLength:80}}},
   output:{type:'object',required:['date','slots'],properties:{date:{type:'string'},slots:{type:'array'},note:{type:'string'}}},
   run:async(a,c,db)=>{
-    const {doctors,bookings,closed,ex}=await loadAll(c,db);
+    const {doctors,bookings,closed,ex}=await loadAll(c,db,{date:a.date});
     if(closed.includes(a.date))return{date:a.date,slots:[],note:'the business is closed that day'};
     const slots=openSlots(doctors,bookings,a.date,a.service,nowLocal(c),16,ex);
     return slots.length?{date:a.date,slots}:{date:a.date,slots:[],note:'no open times that day; try another date'};
@@ -119,7 +123,7 @@ export const bookAppointment=def({name:'book_appointment',patientData:'contact',
   normalise:bookingNormalise,
   preconditions:bookingPreconditions,
   run:async(a,c,db)=>{
-    const {doctors,bookings,ex}=await loadAll(c,db);
+    const {doctors,bookings,ex}=await loadAll(c,db,{date:dateOf(a.when)});
     const doc=assignDoctor(freeDoctors(doctors,a.when,ex),bookings,a.when,a.service);
     if(!doc)throw slotTaken(doctors,bookings,a,c,ex);
     const row=await db.legacy.addBooking(c.orgId,{name:a.name,phone:a.phone,service:a.service,when:a.when,doctor_id:doc.id,doctor:doc.name,status:'booked',source:'assistant'});
@@ -140,7 +144,7 @@ export const requestAppointment=def({name:'request_appointment',public:true,pati
   normalise:bookingNormalise,
   preconditions:bookingPreconditions,
   run:async(a,c,db)=>{
-    const {doctors,bookings,ex}=await loadAll(c,db);
+    const {doctors,bookings,ex}=await loadAll(c,db,{date:dateOf(a.when)});
     const doc=assignDoctor(freeDoctors(doctors,a.when,ex),bookings,a.when,a.service);
     if(!doc)throw slotTaken(doctors,bookings,a,c,ex);
     const status=(await db.bookingPolicy?.(c.orgId))?.autoConfirm?'booked':'requested';
@@ -158,7 +162,7 @@ export const findBookings=def({name:'find_bookings',patientData:'contact',
   output:{type:'object',required:['bookings'],properties:{bookings:{type:'array'}}},
   run:async(a,c,db)=>{
     const p=digits(normalizePhone(a.phone,countryForTimeZone(c.timeZone))||a.phone), now=nowLocal(c);
-    return{bookings:(await db.legacy.list(c.orgId,'bookings')).filter(b=>b.status!=='cancelled'&&digits(b.phone)===p&&b.when>=now)
+    return{bookings:(await db.legacy.list(c.orgId,'bookings',{from:now.slice(0,10)})).filter(b=>b.status!=='cancelled'&&digits(b.phone)===p&&b.when>=now)
       .map(b=>({when:b.when.replace('T',' '),doctor:b.doctor,service:b.service}))};
   }});
 
@@ -169,7 +173,7 @@ export const cancelBooking=def({name:'cancel_booking',patientData:'contact',writ
   errors:['INVALID_ARGUMENT','ENTITY_NOT_FOUND','PERMISSION_DENIED','UNAVAILABLE'],
   run:async(a,c,db)=>{
     const p=digits(normalizePhone(a.phone,countryForTimeZone(c.timeZone))||a.phone);
-    const hit=(await db.legacy.list(c.orgId,'bookings')).find(b=>b.status!=='cancelled'&&digits(b.phone)===p&&b.when===a.when);
+    const hit=(await db.legacy.list(c.orgId,'bookings',{from:nowLocal(c).slice(0,10)})).find(b=>b.status!=='cancelled'&&digits(b.phone)===p&&b.when===a.when);
     if(!hit)throw new ToolError('ENTITY_NOT_FOUND','No booking with that phone and time.',{field:'when',retryable:false});
     await db.legacy.setBookingStatus(c.orgId,hit.id,'cancelled');
     await db.logAudit(c.orgId,'cancellation',`${hit.name} at ${hit.when.replace('T',' ')}`);
@@ -183,7 +187,7 @@ export const showForm=def({name:'show_form',public:true,patientData:'none',
       type:{type:'string',enum:['text','tel','email','date','datetime-local','select','textarea']},required:{type:'boolean'},options:{type:'array',items:{type:'string'}}}}}}},
   output:{type:'object',required:['shown'],properties:{shown:{type:'boolean'}}},
   run:async(a,c,db)=>{
-    const {services}=await loadAll(c,db);
+    const {services}=await loadAll(c,db,{bookings:false});
     const fields=a.fields.map(f=>/service/i.test(`${f.name} ${f.label}`)&&services.length?{...f,type:'select',options:services}:f);
     const form=cleanForm({title:a.title,submit:a.submit,fields});
     if(!form)throw new ToolError('INVALID_ARGUMENT','A form needs at least one valid field.',{field:'fields',retryable:false});
@@ -195,7 +199,7 @@ export const doctorBusyTimes=def({name:'doctor_busy_times',patientData:'none',
   input:{type:'object',additionalProperties:false,required:['date'],properties:{date:DATE}},
   output:{type:'object',required:['date'],properties:{date:{type:'string'},doctors:{type:'array'},note:{type:'string'}}},
   run:async(a,c,db)=>{
-    const {doctors,bookings,closed,ex}=await loadAll(c,db);
+    const {doctors,bookings,closed,ex}=await loadAll(c,db,{date:a.date});
     if(closed.includes(a.date))return{date:a.date,note:'the business is closed that day'};
     const now=nowLocal(c), taken=d=>bookings.filter(b=>b.status!=='cancelled'&&b.doctor_id===d.id);
     return{date:a.date,doctors:doctors.map(d=>({doctor:d.name,working:`${d.start}-${d.end}`,
@@ -217,7 +221,7 @@ const UUID={type:'string',pattern:'^[0-9a-f-]{36}$'};
 const needVerified=c=>{if(!c.verifiedPhone)throw new ToolError('PERMISSION_DENIED','Please verify your phone number first.',{retryable:false})};
 const mine=async(c,db,id)=>{
   const now=nowLocal(c),p=digits(c.verifiedPhone);
-  const all=(await db.legacy.list(c.orgId,'bookings')).filter(b=>b.status!=='cancelled'&&digits(b.phone)===p&&b.when>=now);
+  const all=(await db.legacy.list(c.orgId,'bookings',{from:now.slice(0,10),phone:c.verifiedPhone})).filter(b=>b.status!=='cancelled'&&digits(b.phone)===p&&b.when>=now);
   if(id===undefined)return all;
   const hit=all.find(b=>b.id===id);
   if(!hit)throw new ToolError('ENTITY_NOT_FOUND','That appointment was not found on your number.',{retryable:false});
@@ -255,7 +259,7 @@ export const rescheduleMyAppointment=def({name:'reschedule_my_appointment',publi
     const b=await mine(c,db,a.booking_id);
     if(a.when===b.when)throw new ToolError('PRECONDITION_FAILED','That is already the time of this appointment.',{field:'when',retryable:false});
     await bookingPreconditions({name:b.name,service:b.service,when:a.when},c,db);
-    const {doctors,bookings,ex}=await loadAll(c,db);
+    const {doctors,bookings,ex}=await loadAll(c,db,{date:dateOf(a.when)});
     const others=bookings.filter(x=>x.id!==b.id), req={service:b.service,when:a.when};
     const doc=assignDoctor(freeDoctors(doctors,a.when,ex),others,a.when,b.service,b.doctor_id);
     if(!doc)throw slotTaken(doctors,others,req,c,ex);

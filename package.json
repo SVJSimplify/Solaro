@@ -8,8 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:tools": "node --test tests/tools/unit.test.mjs",
-    "test:db": "node --test tests/db/information.test.mjs tests/db/tools.test.mjs",
-    "test:backfill": "node --test tests/db/backfill.test.mjs"
+    "test:db": "node --test tests/db/information.test.mjs tests/db/tools.test.mjs tests/db/production.test.mjs",
+    "test:backfill": "node --test tests/db/backfill.test.mjs",
+    "bench": "node tests/perf/bench.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.119.0",

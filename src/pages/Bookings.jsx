@@ -43,7 +43,8 @@ export default function Bookings(){
   const decide=async(b,ok)=>{
     setDeciding(b.id);
     try{
-      await db.patch('bookings',b.id,{status:ok?'booked':'cancelled'});
+      // Only the first person to decide wins; anyone else sees it was already handled and nothing is sent twice.
+      if(!await db.claim('bookings',b.id,{status:'requested'},{status:ok?'booked':'cancelled'})){toast('Already handled by someone else');return}
       await audit(db,user.id,ok?'booking.confirmed':'booking.declined',`${b.name} with ${b.doctor||'unassigned'} at ${b.when.replace('T',' ')}`);
       const msg=ok?`Good news: your ${b.service||'appointment'} with ${b.doctor} on ${nice(b.when)} is confirmed. See you then!`
         :`Sorry, we can't offer ${nice(b.when)}. Please choose another time here, or reply and we'll help.`;

@@ -9,8 +9,9 @@ export async function runReminders(db,uid){
     if(b.status==='cancelled'||b.status==='requested'||b.reminded)continue;   // unconfirmed requests get no reminder
     const t=Date.parse(b.when+':00');
     if(!(t>now&&t-now<=24*3600e3))continue;
+    // Claim first: with several staff tabs open, only the tab that wins the claim sends the reminder.
+    if(!await db.claim('bookings',b.id,{reminded:false},{reminded:true}))continue;
     await queue(db,uid,{channel:'sms',to:b.phone,body:`Reminder: ${b.service||'appointment'} with ${b.doctor} at ${b.when.slice(11)} on ${b.when.slice(0,10)}.`});
-    await db.patch('bookings',b.id,{reminded:true});
     n++;
   }
   return n;

@@ -1,6 +1,8 @@
 // Forwards AI requests for a signed-in clinic member. The clinic's own model key and daily limit are applied here, on the server.
 import {createClient} from 'npm:@supabase/supabase-js@2';
 import {orgProvider} from '../_shared/provider.ts';
+import {postChat} from '../_shared/agent.js';
+import {logEvent,allow} from '../_shared/ops.js';
 
 const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type'};
 const J=(b:unknown,s=200)=>new Response(JSON.stringify(b),{status:s,headers:{...cors,'Content-Type':'application/json'}});
@@ -34,18 +36,18 @@ Deno.serve(async req=>{
     response_format:body.response_format,
   };
 
-  // 3. Server-side key and limit for this clinic.
+  // 3. Server-side key and limit for this clinic, plus a per-person burst limit.
   const svc=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+  if(!await allow(svc,'llm:user:'+user.id,60,60))return J({error:'Too many AI requests. Please wait a moment.'},429);
   const pv=await orgProvider(svc,orgId);
   if(pv.error)return J({error:pv.error},pv.status);
   const p=pv.provider!;
 
+  const t0=Date.now(),attempts:any[]=[];
   try{
-    const r=await fetch(p.endpoint.replace(/\/+$/,'')+'/chat/completions',{method:'POST',
-      headers:{'Content-Type':'application/json',Authorization:'Bearer '+p.key},
-      body:JSON.stringify({model:p.model,...payload})});
-    const text=await r.text();
-    if(!r.ok){console.error('llm provider error',r.status,text.slice(0,200));return J({error:'Model unavailable'},502)}
-    return new Response(text,{status:200,headers:{...cors,'Content-Type':'application/json'}});
-  }catch(e){console.error('llm provider unreachable',String(e));return J({error:'Model unavailable'},502)}
+    // Timeouts, retries on 429/5xx/network errors and the optional fallback provider all live in postChat.
+    const j=await postChat(p,{model:p.model,...payload},{onAttempt:a=>attempts.push(a)});
+    logEvent('llm-proxy',{org:orgId,outcome:'ok',ms:Date.now()-t0,attempts});
+    return new Response(JSON.stringify(j),{status:200,headers:{...cors,'Content-Type':'application/json'}});
+  }catch(e){logEvent('llm-proxy',{org:orgId,outcome:'model_failed',ms:Date.now()-t0,attempts,error:String(e).slice(0,200)});return J({error:'Model unavailable'},502)}
 });

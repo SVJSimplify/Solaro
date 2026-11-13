@@ -5,7 +5,16 @@ const url=import.meta.env.VITE_SUPABASE_URL,key=import.meta.env.VITE_SUPABASE_AN
 const sb=url?createClient(url,key):null;
 const TABLE={convos:'conversations',kb:'kb',services:'services',doctors:'doctors',bookings:'bookings',closures:'closures',alerts:'alerts',audit:'audit',outbox:'outbox'};
 let org=null,chans=[];
-const ping=()=>dispatchEvent(new Event('solara'));
+/* Change notifications. Realtime events say which table changed; screens reload only that table, and bursts (a chat
+   writing several rows at once) are coalesced into one reload per table. */
+const APP_TABLE={conversations:'convos',messages:'convos',audit_events:'audit'};
+const pending=new Set();let timer=null;
+const ping=(table)=>{
+  pending.add(table?APP_TABLE[table]??table:'*');
+  if(timer)return;
+  timer=setTimeout(()=>{const tables=[...pending];pending.clear();timer=null;
+    for(const t of tables)dispatchEvent(new CustomEvent('solara',{detail:{table:t==='*'?null:t}}))},250);
+};
 const must=r=>{if(r.error)throw Error(r.error.message);return r.data};
 const ms=t=>t?new Date(t).getTime():0;
 const hm=t=>String(t||'').slice(0,5);
@@ -31,6 +40,7 @@ const FROM={
   audit:r=>({id:r.id,action:r.action,detail:r.detail,at:ms(r.created_at)}),
   outbox:r=>({id:r.id,channel:r.channel,to:r.to_addr,body:r.body,status:r.status,at:ms(r.created_at)}),
 };
+const LIMIT={convos:200,alerts:500,audit:1000,outbox:500};
 const COL={when:'starts_at',start:'start_time',end:'end_time',to:'to_addr'};
 const patchOf=p=>Object.fromEntries(Object.entries(p).filter(([k])=>k!=='id').map(([k,v])=>[COL[k]||k,v]));
 
@@ -43,7 +53,7 @@ async function enter(user){
   await seed();
   chans.forEach(c=>sb.removeChannel(c));
   const tables=['conversations','messages','bookings','kb','doctors','closures','alerts','services','audit_events','outbox'];
-  chans=tables.map(t=>sb.channel('rt-'+t).on('postgres_changes',{event:'*',schema:'public',table:t,filter:'org_id=eq.'+org},ping).subscribe());
+  chans=tables.map(t=>sb.channel('rt-'+t).on('postgres_changes',{event:'*',schema:'public',table:t,filter:'org_id=eq.'+org},()=>ping(t)).subscribe());
   const {data:pa}=await sb.rpc('is_platform_admin');
   return{id:user.id,email:user.email,biz:m[0].organizations.name,org,role:m[0].role,platformAdmin:!!pa};
 }
@@ -64,14 +74,20 @@ export const remote={
   async signOut(){await sb.auth.signOut();chans.forEach(c=>sb.removeChannel(c));chans=[];org=null},
 
   /* RLS scopes every query to the caller's organization, so the uid argument is unused here. */
+  /* Every list is bounded, so a clinic with years of history loads the same amount as a new one:
+     the latest 200 chats (with their messages), bookings from 180 days ago onward, the latest alerts, activity and outbox.
+     Small configuration tables (doctors, services, knowledge, closures) load in full. */
   async list(t){
     if(t==='convos'){
-      const d=must(await sb.from('conversations').select('*, messages(role,body,meta,created_at)').order('created_at',{ascending:false}));
+      const d=must(await sb.from('conversations').select('*, messages(id,role,body,meta,created_at)').order('created_at',{ascending:false}).limit(LIMIT.convos));
       return d.map(c=>({id:c.id,customer:c.customer,channel:c.channel,status:c.status,alerted:c.alerted,created:ms(c.created_at),
-        messages:[...c.messages].sort((a,b)=>ms(a.created_at)-ms(b.created_at)).map(m=>({r:m.role,t:m.body,at:ms(m.created_at),meta:m.meta||undefined}))}));
+        messages:[...c.messages].sort((a,b)=>ms(a.created_at)-ms(b.created_at)).map(m=>({id:m.id,r:m.role,t:m.body,at:ms(m.created_at),meta:m.meta||undefined}))}));
     }
-    const d=must(await sb.from(TABLE[t]).select('*').order('created_at'));
-    return d.map(FROM[t]);
+    let q=sb.from(TABLE[t]).select('*');
+    if(t==='bookings')q=q.gte('starts_at',new Date(Date.now()-180*864e5).toISOString().slice(0,10));
+    if(LIMIT[t])q=q.order('created_at',{ascending:false}).limit(LIMIT[t]);
+    const d=must(await q.order('created_at'));
+    return (LIMIT[t]?[...d].reverse():d).map(FROM[t]);
   },
   async add(t,_u,row){
     if(t==='convos'){
@@ -86,15 +102,23 @@ export const remote={
   /* The UI sends the full message list; only the new tail is inserted. */
   async patch(t,id,p){
     if(t==='convos'){
+      // Only messages without an id are new. The old "count rows, insert the rest" dropped a staff reply whenever a
+      // patient message arrived between loading the chat and sending.
       if(p.messages){
-        const {count}=await sb.from('messages').select('id',{count:'exact',head:true}).eq('conversation_id',id);
-        const tail=p.messages.slice(count||0);
-        if(tail.length)must(await sb.from('messages').insert(tail.map(m=>({org_id:org,conversation_id:id,role:m.r,body:m.t,meta:m.meta??null}))));
+        const fresh=p.messages.filter(m=>!m.id);
+        if(fresh.length)must(await sb.from('messages').insert(fresh.map(m=>({org_id:org,conversation_id:id,role:m.r,body:m.t,meta:m.meta??null}))));
       }
       const u={};if(p.status)u.status=p.status;if('alerted' in p)u.alerted=p.alerted;
       if(Object.keys(u).length)must(await sb.from('conversations').update(u).eq('id',id));
     }else must(await sb.from(TABLE[t]).update(patchOf(p)).eq('id',id));
     ping();
+  },
+  /* Conditional update: changes the row only if it still matches `when`. Returns true for the one caller that won,
+     so two staff members (or two open tabs) can never both confirm a request or both send a reminder. */
+  async claim(t,id,when,set){
+    let q=sb.from(TABLE[t]).update(patchOf(set)).eq('id',id);
+    for(const [k,v] of Object.entries(when))q=q.eq(COL[k]||k,v);
+    const r=must(await q.select('id'));ping(TABLE[t]);return r.length>0;
   },
   async del(t,id){
     if(t==='doctors')throw Error('Doctors are removed only through a confirmation card.');

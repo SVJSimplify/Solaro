@@ -7,6 +7,7 @@ import {buildRegistry,runToolLoop,executeTool} from '../_shared/tools/index.js';
 import {publicAdapter} from '../_shared/tools/supabaseAdapter.js';
 import {bookingForm,wantsBooking,wantsManage} from '../_shared/tools/front.js';
 import {normalizePhone,countryForTimeZone} from '../_shared/tools/phone.js';
+import {logEvent,allow} from '../_shared/ops.js';
 import {publicSystem} from '../_shared/tools/prompt.js';
 import {buildMessages,triage,cleanForm,hasHealthSignal,REASONS,FALLBACK,callModelRaw} from '../_shared/agent.js';
 
@@ -46,6 +47,14 @@ Deno.serve(async req=>{
   const {data:convo}=await svc.from('conversations').select('id,org_id,customer,status').eq('id',cid).single();
   if(!convo)return J({error:'Chat not found'},404);
   const orgId=convo.org_id;
+  const action=String(body.action??'message');
+
+  // Burst limits for everything except polling: per chat, and per clinic so one busy or abusive site cannot exhaust the
+  // database or the clinic's AI budget. Polling is cheap (an indexed read) and is limited by the browser's 5-second timer.
+  if(action!=='poll'&&(!await allow(svc,'widget:chat:'+cid,40,60)||!await allow(svc,'widget:org:'+orgId,1200,60))){
+    logEvent('widget-chat',{org:orgId,action,outcome:'rate_limited'});
+    return J({error:'Please wait a moment before trying again.'},429);
+  }
 
   // 2. Poll: every message in this chat after a given time, including staff replies.
   if(body.action==='poll'){
@@ -88,7 +97,7 @@ Deno.serve(async req=>{
       await svc.from('patient_verifications').insert({id,org_id:orgId,conversation_id:cid,phone,code_hash:await sha256hex(id+':'+code),expires_at:new Date(Date.now()+CODE_TTL_MS).toISOString()});
       const {data:o}=await svc.from('organizations').select('name').eq('id',orgId).single();
       try{await sendSms(phone,`${code} is your ${o?.name??'clinic'} code to manage your appointment. It expires in 10 minutes.`)}
-      catch(e){console.error(String(e));return J({error:'We could not send a text right now. Please try again shortly.'},502)}
+      catch(e){logEvent('widget-chat',{org:orgId,action,outcome:'sms_failed',error:String(e).slice(0,200)});return J({error:'We could not send a text right now. Please try again shortly.'},502)}
     }
     return J({sent:true,message:'If that number has appointments with us, a 6-digit code is on its way.'});
   }
@@ -170,7 +179,7 @@ Deno.serve(async req=>{
   if(!t&&convo.status==='handoff')return J({reply:null,handoff:true,status:'handoff'});
 
   const out:any={handoff:false,reason:null,form:null,booked:false,requested:false};
-  let reply:string,urgent=null;
+  let reply:string,urgent=null;const t0=Date.now(),attempts:any[]=[];
   if(t){reply=t.reply;out.handoff=true;out.reason=t.reason;urgent=t.urgent??null}
   else{
     const pv:any=await orgProvider(svc,orgId);
@@ -181,11 +190,12 @@ Deno.serve(async req=>{
       const [st,org]=await Promise.all([svc.from('settings').select('tone,greeting').eq('org_id',orgId).maybeSingle(),svc.from('organizations').select('name').eq('id',orgId).single()]);
       try{
         const res:any=await withTimeout(runToolLoop({
-          callModel:(m:any,tools:any)=>callModelRaw({...pv.provider,maxTokens:1200,reasoningEffort:'none'},m,tools),
+          callModel:(m:any,tools:any)=>callModelRaw({...pv.provider,maxTokens:1200,reasoningEffort:'none',onAttempt:(a:any)=>attempts.push(a)},m,tools),
           registry,db,role:'public',surface:'public',ctx:ctx(out),
           system:publicSystem({org:org.data?.name??'this clinic',tone:st.data?.tone??'friendly',greeting:st.data?.greeting??'',timeZone}),messages}),40000);
         reply=res.reply;
-      }catch(e){console.error('widget-chat model failed',String(e));reply=FALLBACK;out.handoff=true;out.reason='error'}
+        logEvent('widget-chat',{org:orgId,action:'message',outcome:res.stopped??'ok',ms:Date.now()-t0,tools:res.calls.map((c:any)=>c.ok?c.name:c.name+':'+c.code),attempts});
+      }catch(e){logEvent('widget-chat',{org:orgId,action:'message',outcome:'model_failed',ms:Date.now()-t0,attempts,error:String(e).slice(0,200)});reply=FALLBACK;out.handoff=true;out.reason='error'}
     }
     // A health_risk label must be backed by the visitor's own words.
     if(out.reason==='health_risk'&&!hasHealthSignal(text))out.reason='other';

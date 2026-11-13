@@ -115,20 +115,49 @@ export async function runAgent({providers,system,messages}){
   return{reply:FALLBACK,handoff:true,reason:'error',booking:null,form:null};
 }
 
+/* Model calls that survive provider trouble. Each attempt has a timeout; rate limits (429), server errors (5xx) and network
+   failures are retried with backoff (honouring Retry-After, capped); a configured fallback provider is tried last.
+   Retrying is safe: a model call has no side effects, and tool calls only run after a reply arrives. 4xx errors are not retried. */
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+export async function postChat(p,body,{attempts=3,timeoutMs=p.timeoutMs??30000,onAttempt}={}){
+  let last;
+  for(const prov of [p,...(p.fallback?[p.fallback]:[])]){
+    const headers={'Content-Type':'application/json',...(prov.key?{Authorization:'Bearer '+prov.key}:{})};
+    if(prov.auth)Object.assign(headers,await prov.auth());
+    const url=prov.proxy?prov.endpoint:prov.endpoint.replace(/\/+$/,'')+'/chat/completions';
+    const payload=JSON.stringify(prov.proxy?body:{...body,model:prov.model||body.model});
+    for(let i=0;i<attempts;i++){
+      const t0=Date.now();let r,status=0;
+      const ac=new AbortController(),timer=setTimeout(()=>ac.abort(new Error('Model call timed out')),timeoutMs);
+      try{
+        r=await fetch(url,{method:'POST',headers,body:payload,signal:ac.signal});
+        status=r.status;
+        if(r.ok){onAttempt?.({provider:prov===p?'primary':'fallback',attempt:i+1,status,ms:Date.now()-t0});return await r.json()}
+        const text=await r.text().catch(()=>'');
+        last=new Error('Model error '+status+': '+text.slice(0,300));last.status=status;
+        if(status!==429&&status<500)throw last;                       // a bad request will not get better by retrying
+        const ra=Number(r.headers.get('retry-after'));
+        onAttempt?.({provider:prov===p?'primary':'fallback',attempt:i+1,status,ms:Date.now()-t0});
+        if(i<attempts-1)await sleep(Math.min(Number.isFinite(ra)&&ra>0?ra*1000:400*2**i+Math.random()*200,5000));
+      }catch(e){
+        if(e===last&&status&&status!==429&&status<500)throw e;
+        last=e;onAttempt?.({provider:prov===p?'primary':'fallback',attempt:i+1,status:status||'network',ms:Date.now()-t0});
+        if(i<attempts-1)await sleep(400*2**i+Math.random()*200);
+      }finally{clearTimeout(timer)}
+    }
+  }
+  throw last??new Error('Model unavailable');
+}
+
 /* Chat call with tool definitions. Returns the assistant message (content and/or tool_calls). */
 export async function callModelRaw(p,messages,tools){
   // Proxy: the server adds the model key and picks the model. Direct: an OpenAI-compatible endpoint with its own key.
-  const headers={'Content-Type':'application/json',...(p.key?{Authorization:'Bearer '+p.key}:{})};
-  if(p.auth)Object.assign(headers,await p.auth());
   const body={max_completion_tokens:p.maxTokens??2000,messages,
     // Some models reject function tools unless reasoning is off.
     reasoning_effort:p.reasoningEffort??'none',
     tools:tools.map(t=>t.type==='function'?t:{type:'function',function:t}),tool_choice:'auto'};
-  if(!p.proxy)body.model=p.model;
-  const url=p.proxy?p.endpoint:p.endpoint.replace(/\/+$/,'')+'/chat/completions';
-  const r=await fetch(url,{method:'POST',headers,body:JSON.stringify(body)});
-  if(!r.ok){const t=await r.text().catch(()=>'');throw new Error('Model error '+r.status+': '+t.slice(0,300))}
-  const j=await r.json();
+  // Through the proxy the browser does not retry: the proxy already does, and a second layer would multiply attempts.
+  const j=await postChat(p,body,p.proxy?{attempts:1,timeoutMs:90000}:{onAttempt:p.onAttempt});
   const msg=j.choices?.[0]?.message;
   if(!msg)throw new Error('Model returned no message');
   return msg;

@@ -751,3 +751,33 @@ test('P5 insights count chats, hand-offs, requests and time to confirm',()=>{
   assert.deepEqual([m.requests.total,m.requests.confirmed,m.requests.pending,m.requests.declined],[3,1,1,1]);
   assert.equal(m.requests.medianMinutesToDecide,90);assert.equal(m.selfService.rescheduled,1);
 });
+
+// ---------- Production round: model-call resilience, bounded tool reads ----------
+import {postChat} from '../../supabase/functions/_shared/agent.js';
+function fakeFetch(script){
+  const calls=[];
+  const f=async(url,init)=>{calls.push(url);const s=script.shift();if(s==='network')throw new TypeError('fetch failed');if(s==='hang')return new Promise((_,rej)=>init.signal.addEventListener('abort',()=>rej(init.signal.reason)));
+    return{ok:s.status<300,status:s.status,headers:{get:k=>k==='retry-after'?s.retryAfter??null:null},json:async()=>s.body,text:async()=>JSON.stringify(s.body??{})}};
+  f.calls=calls;return f;
+}
+const OKBODY={choices:[{message:{content:'hi'}}]};
+test('R1 model calls retry 429 and 5xx, then succeed',async()=>{
+  const real=globalThis.fetch;const f=fakeFetch([{status:429,retryAfter:'0'},{status:503},{status:200,body:OKBODY}]);globalThis.fetch=f;
+  try{const seen=[];const j=await postChat({endpoint:'https://a.test/v1',key:'k'},{messages:[]},{onAttempt:a=>seen.push(a.status)});
+    assert.equal(j.choices[0].message.content,'hi');assert.deepEqual(seen,[429,503,200]);}finally{globalThis.fetch=real}
+});
+test('R2 a bad request is not retried',async()=>{
+  const real=globalThis.fetch;const f=fakeFetch([{status:400,body:{error:'bad'}},{status:200,body:OKBODY}]);globalThis.fetch=f;
+  try{await assert.rejects(postChat({endpoint:'https://a.test/v1'},{messages:[]}),/Model error 400/);assert.equal(f.calls.length,1)}finally{globalThis.fetch=real}
+});
+test('R3 timeouts and outages move to the fallback provider',async()=>{
+  const real=globalThis.fetch;const f=fakeFetch(['hang','network','network',{status:200,body:OKBODY}]);globalThis.fetch=f;
+  try{const j=await postChat({endpoint:'https://primary.test/v1',fallback:{endpoint:'https://backup.test/v1',key:'b',model:'m2'}},{messages:[]},{timeoutMs:50});
+    assert.equal(j.choices[0].message.content,'hi');assert.match(f.calls.at(-1),/backup\.test/);assert.equal(f.calls.length,4)}finally{globalThis.fetch=real}
+});
+test('R4 availability reads one day of bookings, never the whole history',async()=>{
+  const seen=[];const db=publicDb();const list=db.legacy.list;
+  db.legacy.list=async(o,t,opts)=>{if(t==='bookings')seen.push(opts);return list(o,t)};
+  await executeTool(buildFullRegistry(),'check_availability',{date:'2026-11-17'},pctx(),db);
+  assert.equal(seen.length,1);assert.deepEqual(seen[0],{from:'2026-11-17',to:'2026-11-18'});
+});
