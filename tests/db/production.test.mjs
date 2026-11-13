@@ -28,7 +28,7 @@ before(async()=>{
     const [u]=await q("insert into auth.users(email) values($1) returning id",[r+'-'+Date.now()+'@prod.test']);ids[r]=u.id;
   }
   await q("insert into members(org_id,user_id,role) values($1,$2,'owner'),($1,$3,'staff'),($1,$4,'doctor'),($5,$6,'owner')",[ids.A,ids.owner,ids.staff,ids.doctor,ids.B,ids.otherOwner]);
-  const [d]=await q("insert into doctors(org_id,name) values($1,'Dr Prod') returning id",[ids.A]);ids.doc=d.id;
+  const [d]=await q("insert into doctors(org_id,name,days,start_time,end_time) values($1,'Dr Prod','{0,1,2,3,4,5,6}','00:00','24:00') returning id",[ids.A]);ids.doc=d.id;
   const [c]=await q("insert into conversations(org_id,customer,channel,status) values($1,'P','Web chat','handled') returning id",[ids.A]);ids.convo=c.id;
   await q("insert into messages(org_id,conversation_id,role,body) values($1,$2,'cust','hello')",[ids.A,ids.convo]);
   await q("insert into bookings(org_id,name,phone,service,starts_at,doctor_id,doctor,status) values($1,'P','+14155550100','Cleaning','2031-01-01 09:00',$2,'Dr Prod','booked')",[ids.A,ids.doc]);

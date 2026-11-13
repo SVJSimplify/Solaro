@@ -1,12 +1,13 @@
 import {respondWith} from './respond';
 import {DEFAULT_DOCTORS,DEFAULT_SERVICES,assignDoctor} from './schedule';
+import {computeInsights} from './insights';
 /* ============ DATA LAYER — swap this object for Supabase later ============
    Every method is async and returns plain objects, so each maps 1:1 to a
    supabase-js call (noted per method). Nothing outside `db` touches storage. */
 export const local=(()=>{
   const pending=new Map();
   const K='solara.v1',L=()=>{try{return JSON.parse(localStorage.getItem(K))||{}}catch(e){return{}}},S=s=>{try{localStorage.setItem(K,JSON.stringify(s))}catch(e){}dispatchEvent(new Event('solara'))},id=()=>crypto.randomUUID();
-  const st=()=>{const s=L();s.users??=[];s.convos??=[];s.bookings??=[];s.alerts??=[];s.doctors??=[];s.services??=[];s.audit??=[];s.outbox??=[];s.closures??=[];s.kb??=[];s.settings??={};return s};
+  const st=()=>{const s=L();s.users??=[];s.convos??=[];s.bookings??=[];s.alerts??=[];s.doctors??=[];s.services??=[];s.audit??=[];s.outbox??=[];s.closures??=[];s.kb??=[];s.leave??=[];s.settings??={};return s};
   const seed=(s,uid)=>{s.kb.push(...[
    ['Hours','Mon–Fri 8am–6pm, Saturday 9am–2pm. Closed Sunday.','hours open close when'],
    ['Insurance','We accept Cigna, Aetna, Delta Dental and most major plans. Share your member ID and we will verify coverage.','insurance cigna aetna cover plan'],
@@ -54,3 +55,35 @@ export const local=(()=>{
 
 /* Same call the Supabase adapter makes, so pages never care which backend is active. */
 local.respond=(id,text,uid)=>respondWith(local,id,uid);
+
+/* Demo-mode equivalents of the server's appointment functions (same names, same results). */
+const say=(uid,b,body,kind)=>Promise.all([b.conversation_id&&local.postMessage(b.conversation_id,body),local.add('outbox',uid,{channel:'sms',to:b.phone,body,kind,booking_id:b.id,status:'queued',at:Date.now()})]);
+const log=(uid,action,detail)=>local.add('audit',uid,{action,detail,at:Date.now()});
+const find=async(uid,id)=>(await local.list('bookings',uid)).find(b=>b.id===id);
+const at=b=>`${b.name} with ${b.doctor||'unassigned'} at ${b.when.replace('T',' ')}`;
+Object.assign(local,{
+  async bookingCreate(uid,r){
+    const all=await local.list('bookings',uid),d=(await local.list('doctors',uid)).find(x=>x.id===r.doctor_id);
+    if(!d)throw Error('Pick a doctor.');
+    if(all.some(b=>b.status!=='cancelled'&&b.doctor_id===d.id&&b.when===r.when))throw Error('That time was just taken. Pick another slot.');
+    const b=await local.add('bookings',uid,{name:r.name,phone:r.phone,service:r.service,when:r.when,doctor_id:d.id,doctor:d.name,status:'booked',source:'staff'});
+    await log(uid,'booking',at(b));await say(uid,b,`You are booked: ${b.service||'appointment'} with ${d.name} at ${b.when.replace('T',' ')}.`,'confirmation');return{ok:true,id:b.id,doctor:d.name}},
+  async bookingDecide(uid,id,ok){
+    if(!await local.claim('bookings',id,{status:'requested'},{status:ok?'booked':'cancelled',decided_at:Date.now()}))return{ok:false};
+    const b=await find(uid,id);await log(uid,ok?'booking.confirmed':'booking.declined',at(b));
+    await say(uid,b,ok?`Good news: your ${b.service||'appointment'} at ${b.when.replace('T',' ')} is confirmed.`:`Sorry, we can't offer ${b.when.replace('T',' ')}. Please choose another time.`,ok?'confirmation':'decline');return{ok:true}},
+  async bookingReschedule(uid,id,when,doctorId){
+    const all=await local.list('bookings',uid),b=all.find(x=>x.id===id),d=(await local.list('doctors',uid)).find(x=>x.id===(doctorId||b.doctor_id));
+    if(!d)throw Error('Pick a doctor.');
+    if(all.some(x=>x.id!==id&&x.status!=='cancelled'&&x.doctor_id===d.id&&x.when===when))throw Error('That time was just taken. Pick another slot.');
+    const was=b.when;await local.patch('bookings',id,{when,doctor_id:d.id,doctor:d.name,status:'booked',reminded:false});
+    await log(uid,'booking.rescheduled',`${b.name}: ${was.replace('T',' ')} → ${when.replace('T',' ')} with ${d.name}`);
+    await say(uid,{...b,when},`Your appointment has moved to ${when.replace('T',' ')} with ${d.name}.`,'reschedule');return{ok:true,doctor:d.name}},
+  async bookingCancel(uid,id){const b=await find(uid,id);await local.patch('bookings',id,{status:'cancelled'});await log(uid,'cancellation',`${b.name} at ${b.when.replace('T',' ')}`);
+    await say(uid,b,`Your appointment at ${b.when.replace('T',' ')} has been cancelled.`,'cancellation');return{ok:true}},
+  async bookingStatus(uid,id,status){const b=await find(uid,id);await local.patch('bookings',id,{status});await log(uid,status==='booked'?'booking.reopened':'booking.'+status,`${b.name} at ${b.when.replace('T',' ')}`);return{ok:true,status}},
+  async insights(uid,days){const [convos,alerts,bookings,audit,outbox]=await Promise.all(['convos','alerts','bookings','audit','outbox'].map(t=>local.list(t,uid)));return computeInsights({convos,alerts,bookings,audit,outbox},{days})},
+  async chooseOrg(){return local.session()},
+  async resetPassword(){throw Error('Password reset needs the live backend.')},
+  async updatePassword(){throw Error('Password reset needs the live backend.')},
+});

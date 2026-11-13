@@ -1,5 +1,5 @@
 /* AI calls go through Solara's server (edge function llm-proxy). The model key lives only in Supabase secrets, never in the browser. */
-import {accessToken} from './supabasedb';
+import {accessToken,multiClinic} from './supabasedb';
 
 const PROXY=import.meta.env.VITE_SUPABASE_URL+'/functions/v1/llm-proxy';
 const ANON=import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -12,6 +12,8 @@ export const devProviders=()=>import.meta.env.VITE_SUPABASE_URL?[{endpoint:PROXY
 
 /* Staff assistant: runs on the server (edge function staff-agent) with the registry's tools and the caller's own permissions. */
 export async function staffAgent(messages,mode){
+  // The server binds the assistant to the caller's membership. Until it accepts an explicit clinic, refuse rather than risk acting on the wrong one.
+  if(multiClinic())throw new Error('The assistant is not available yet for accounts that belong to several clinics.');
   const r=await fetch(import.meta.env.VITE_SUPABASE_URL+'/functions/v1/staff-agent',{method:'POST',headers:{'Content-Type':'application/json',...(await proxyAuth())},body:JSON.stringify({messages,mode})});
   const j=await r.json().catch(()=>({}));
   if(!r.ok)throw new Error(j.error||'The assistant is unavailable');

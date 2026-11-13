@@ -20,9 +20,9 @@ export default function Activity(){
       <div className="card st"><h3>Log</h3>
         {rows.length?<ul className="feed">{rows.map(r=><li key={r.id}><b>{r.action}</b> {r.detail}<small>{ago(r.at)}</small></li>)}</ul>:<div className="empty">Nothing yet.</div>}
       </div>
-      <div className="card st"><h3>Messages sent</h3>
-        <p className="route">Recorded locally. Production sends these through your SMS or email provider.</p>
-        {msgs.length?<ul className="feed">{msgs.map(m=><li key={m.id}><b>{m.channel.toUpperCase()} to {m.to||'—'}</b> {m.body}<small>{ago(m.at)} · {m.status}</small></li>)}</ul>:<div className="empty">No messages yet.</div>}
+      <div className="card st"><h3>Messages to patients</h3>
+        <p className="route">Each message shows what really happened to it. “Waiting” has not been sent; “not sent” needs a call or a retry.</p>
+        {msgs.length?<ul className="feed">{msgs.map(m=><li key={m.id}><b>{m.channel.toUpperCase()} to {m.to||'—'}</b> {m.body}<small>{ago(m.at)} · <span className={'chip '+(m.status==='failed'?'no_show':m.status==='sent'?'completed':'requested')}>{({queued:'waiting',processing:'sending',sent:'sent',failed:'not sent'})[m.status]||m.status}</span>{m.status==='failed'&&m.error?' '+m.error:''}</small></li>)}</ul>:<div className="empty">No messages yet.</div>}
       </div>
     </div>
   </>);

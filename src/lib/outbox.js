@@ -1,7 +1,9 @@
-/* Outgoing messages (SMS, email). Local build records them; production sends them through a provider. */
-export const queue=(db,uid,{channel,to,body})=>db.add('outbox',uid,{channel,to,body,status:'sent',at:Date.now()});
+/* Outgoing messages (SMS, email). They are queued; the server's sender (outbox-dispatch) delivers them and records the result.
+   A queued message has not been sent. */
+export const queue=(db,uid,{channel,to,body})=>db.add('outbox',uid,{channel,to,body,status:'queued',at:Date.now()});
 
-/* Sends one reminder for each booking starting within 24 hours that hasn't been reminded yet. */
+/* Local demo only: with the live backend the database queues reminders on a schedule (queue_due_reminders), so no browser needs to be open.
+   Sends one reminder for each booking starting within 24 hours that hasn't been reminded yet. */
 export async function runReminders(db,uid){
   const now=Date.now(),bookings=await db.list('bookings',uid);
   let n=0;
