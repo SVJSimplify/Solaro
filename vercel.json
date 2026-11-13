@@ -1,0 +1,4 @@
+{
+  "rewrites": [{ "source": "/((?!assets/|embed\\.js$|favicon).*)", "destination": "/index.html" }],
+  "headers": [{ "source": "/embed.js", "headers": [{ "key": "Cache-Control", "value": "public, max-age=300" }, { "key": "Access-Control-Allow-Origin", "value": "*" }] }]
+}
