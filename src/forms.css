@@ -65,29 +65,8 @@ input[type=file]:focus-visible{outline:2px solid var(--coral);outline-offset:2px
 .modal textarea{width:100%;font-size:.9rem}
 .modal .acts{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 
-/* ---- Uniform look: one radius for every button and field, larger body text, smooth motion ---- */
-html body button,
-html body .btn,
-html body input:not([type=checkbox]):not([type=radio]),
-html body select,
-html body textarea,
-html body .slot,
-html body .kb,
-html body .card,
-html body .fc,
-html body .callp,
-html body .modal,
-html body .row{border-radius:14px !important}
-html body .btn,
-html body button{transition:background-color .3s ease,border-color .3s ease,color .3s ease,box-shadow .3s ease,transform .3s cubic-bezier(.22,.61,.36,1),opacity .3s ease !important}
-html body .btn:not(:disabled):hover{transform:translateY(-1px)}
-html body .btn:not(:disabled):active{transform:translateY(0)}
-html body input[type=file]::file-selector-button{border-radius:14px !important;transition:border-color .3s ease !important}
-/* Body text: a touch larger, spacing kept */
-html body :is(p,li,label,td,dd,dt,input,select,textarea){font-size:1.05rem;line-height:1.55}
-html body .route,html body .notes,html body .errs{font-size:1rem;line-height:1.55}
-html body .steps{margin:4px 0 8px;padding-left:20px;display:grid;gap:6px;font-size:1.05rem;line-height:1.55}
-html body .steps b{color:var(--coral)}
+html body .steps{margin:4px 0 8px;padding-left:20px;display:grid;gap:6px;line-height:1.55}
+html body .steps b{color:var(--coral6)}
 /* Soft entrance for dialogs and panels */
 @keyframes softIn{from{opacity:0;transform:translateY(8px) scale(.985)}to{opacity:1;transform:none}}
 html body .modal-bg{animation:fadeBg .35s ease both}

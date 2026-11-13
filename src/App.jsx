@@ -2,6 +2,7 @@ import {useState,useEffect} from 'react';
 import {Routes,Route,Navigate} from 'react-router-dom';
 import {db} from './lib/db';
 import {AuthCtx,ToastProvider,useAuth} from './lib/hooks';
+import {ConfirmProvider} from './lib/ui';
 import Widget from './pages/Widget';import Admin from './pages/Admin';import Auth from './pages/Auth';import Layout from './pages/Layout';import Onboarding from './pages/Onboarding';
 import Inbox from './pages/Inbox';import Demo from './pages/Demo';import Alerts from './pages/Alerts';import Customers from './pages/Customers';import Activity from './pages/Activity';import Bookings from './pages/Bookings';
 import Insights from './pages/Insights';import Today from './pages/Today';import {Recover,ChooseClinic} from './pages/Auth';import Knowledge from './pages/Knowledge';import Settings from './pages/Settings';
@@ -35,7 +36,7 @@ export default function App(){
   if(user.needsOrg)return <ChooseClinic user={user} onChoose={switchOrg}/>;
   const signOut=async()=>{await db.signOut();setUser(null)};
   return(
-    <AuthCtx.Provider value={{user,signOut,switchOrg}}><ToastProvider>
+    <AuthCtx.Provider value={{user,signOut,switchOrg}}><ToastProvider><ConfirmProvider>
       <Routes key={user.org||'local'}>
         <Route path="onboarding" element={<Onboarding/>}/>
         <Route path="demo" element={<Demo/>}/>
@@ -47,6 +48,6 @@ export default function App(){
           <Route path="*" element={<Navigate to="/inbox" replace/>}/>
         </Route>
       </Routes>
-    </ToastProvider></AuthCtx.Provider>
+    </ConfirmProvider></ToastProvider></AuthCtx.Provider>
   );
 }

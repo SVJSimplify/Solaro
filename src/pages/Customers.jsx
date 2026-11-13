@@ -1,6 +1,9 @@
 import {useTable} from '../lib/hooks';
 import {phoneOf} from '../lib/reasons';
-import {ago} from '../lib/ui';
+import {useState} from 'react';
+import {useNavigate} from 'react-router-dom';
+import {ago,Icon,Empty} from '../lib/ui';
+import {nice} from '../lib/avail';
 
 /* One record per phone number, built from bookings and chats. Exportable as CSV. */
 const key=p=>String(p||'').replace(/\D/g,'').slice(-10);
@@ -28,12 +31,20 @@ export default function Customers(){
     const url=URL.createObjectURL(new Blob([[head.map(csvCell).join(','),...body].join('\n')],{type:'text/csv'}));
     const a=document.createElement('a');a.href=url;a.download='customers.csv';a.click();URL.revokeObjectURL(url);
   };
+  const [q,setQ]=useState(''),[by,setBy]=useState('name'),nav=useNavigate();
+  const ql=q.trim().toLowerCase(),qd=ql.replace(/\D/g,'');
+  const shown=rows.filter(r=>!ql||r.name.toLowerCase().includes(ql)||(qd.length>=3&&key(r.phone).includes(qd)))
+    .sort((a,b)=>by==='name'?a.name.localeCompare(b.name):by==='next'?(a.next||'9').localeCompare(b.next||'9'):b[by]-a[by]);
+  const Th=({k,children})=><th aria-sort={by===k?'ascending':undefined}><button className="sort" onClick={()=>setBy(k)}>{children}{by===k&&<Icon n="right" size={12}/>}</button></th>;
+  const openP=r=>nav('/bookings?view=list&range=all&status=all&q='+encodeURIComponent(key(r.phone)));
   return(<>
-    <header><h1>Customers</h1><button className="btn ghost sm" onClick={exportCsv} disabled={!rows.length}>Export CSV</button></header>
-    <div className="card st">
-      {rows.length?<table><thead><tr><th>Name</th><th>Phone</th><th>Past visits</th><th>Next</th><th>Chats</th><th>Last chat</th></tr></thead><tbody>
-        {rows.map(r=><tr key={r.phone+r.name}><td>{r.name}</td><td>{r.phone}</td><td>{r.visits}</td><td>{r.next?r.next.replace('T',' '):'—'}</td><td>{r.chats}</td><td>{r.lastChat?ago(r.lastChat):'—'}</td></tr>)}
-      </tbody></table>:<div className="empty">No customers yet. They appear once they book or share a phone number in chat.</div>}
+    <header><div><h1>Patients</h1><p>One record per phone number, built from bookings and chats.</p></div>
+      <span className="hdr-actions"><button className="btn ghost sm" onClick={exportCsv} disabled={!rows.length}>Export CSV</button></span></header>
+    <div className="toolbar"><label className="search"><Icon n="search" size={18}/><input type="search" placeholder="Search name or phone" aria-label="Search name or phone" value={q} onChange={e=>setQ(e.target.value)}/></label><span className="route">{shown.length} of {rows.length}</span></div>
+    <div className="card">
+      {shown.length?<div className="tblwrap"><table className="tbl"><thead><tr><Th k="name">Name</Th><th>Phone</th><Th k="visits">Past visits</Th><Th k="next">Next appointment</Th><Th k="chats">Chats</Th><th>Last chat</th></tr></thead><tbody>
+        {shown.map(r=><tr key={r.phone+r.name} tabIndex={0} onClick={()=>openP(r)} onKeyDown={e=>e.key==='Enter'&&openP(r)} title="Open this patient's appointments"><td><b>{r.name}</b></td><td>{r.phone}</td><td>{r.visits}</td><td>{r.next?nice(r.next):'—'}</td><td>{r.chats}</td><td>{r.lastChat?ago(r.lastChat)+' ago':'—'}</td></tr>)}
+      </tbody></table></div>:<Empty icon="people" title={rows.length?'No patients match':'No patients yet'}>{rows.length?'Try a different name or number.':'They appear once they book or share a phone number in chat.'}</Empty>}
     </div>
   </>);
 }
