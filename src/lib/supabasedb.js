@@ -1,0 +1,132 @@
+import {createClient} from '@supabase/supabase-js';
+import {respondWith} from './respond';
+import {DEFAULT_DOCTORS,DEFAULT_SERVICES} from './schedule';
+const url=import.meta.env.VITE_SUPABASE_URL,key=import.meta.env.VITE_SUPABASE_ANON_KEY;
+const sb=url?createClient(url,key):null;
+const TABLE={convos:'conversations',kb:'kb',services:'services',doctors:'doctors',bookings:'bookings',closures:'closures',alerts:'alerts',audit:'audit',outbox:'outbox'};
+let org=null,chans=[];
+const ping=()=>dispatchEvent(new Event('solara'));
+const must=r=>{if(r.error)throw Error(r.error.message);return r.data};
+const ms=t=>t?new Date(t).getTime():0;
+const hm=t=>String(t||'').slice(0,5);
+
+/* App field names <-> table columns, one pair per table. */
+const TO={
+  kb:r=>({title:r.title,body:r.body,keywords:r.keywords,starter:!!r.starter}),
+  services:r=>({name:r.name}),
+  doctors:r=>({name:r.name,specialty:r.specialty||'',services:r.services||[],days:r.days||[],start_time:r.start,end_time:r.end,slot:r.slot||30}),
+  bookings:r=>({name:r.name,phone:r.phone,service:r.service||'',starts_at:r.when,doctor_id:r.doctor_id||null,doctor:r.doctor||'',status:r.status||'booked',reminded:!!r.reminded}),
+  closures:r=>({date:r.date}),
+  alerts:r=>({convo:r.convo,customer:r.customer||'',reason:r.reason||'other',text:r.text||'',read:!!r.read}),
+  audit:r=>({action:r.action,detail:r.detail||''}),
+  outbox:r=>({channel:r.channel,to_addr:r.to||'',body:r.body||'',status:r.status||'sent'}),
+};
+const FROM={
+  kb:r=>({id:r.id,title:r.title,body:r.body,keywords:r.keywords,starter:r.starter,created:ms(r.created_at)}),
+  services:r=>({id:r.id,name:r.name,created:ms(r.created_at)}),
+  doctors:r=>({id:r.id,name:r.name,specialty:r.specialty,services:r.services,days:r.days,start:hm(r.start_time),end:hm(r.end_time),slot:r.slot,created:ms(r.created_at)}),
+  bookings:r=>({id:r.id,name:r.name,phone:r.phone,service:r.service,when:r.starts_at.slice(0,16),doctor_id:r.doctor_id,doctor:r.doctor,status:r.status,reminded:r.reminded,source:r.source,conversation_id:r.conversation_id,requested_at:r.requested_at,decided_at:r.decided_at,created:ms(r.created_at)}),
+  closures:r=>({id:r.id,date:r.date,created:ms(r.created_at)}),
+  alerts:r=>({id:r.id,convo:r.convo,customer:r.customer,reason:r.reason,text:r.text,read:r.read,created:ms(r.created_at)}),
+  audit:r=>({id:r.id,action:r.action,detail:r.detail,at:ms(r.created_at)}),
+  outbox:r=>({id:r.id,channel:r.channel,to:r.to_addr,body:r.body,status:r.status,at:ms(r.created_at)}),
+};
+const COL={when:'starts_at',start:'start_time',end:'end_time',to:'to_addr'};
+const patchOf=p=>Object.fromEntries(Object.entries(p).filter(([k])=>k!=='id').map(([k,v])=>[COL[k]||k,v]));
+
+/* Resolve the user's organization (created on first login), seed defaults once, stream live changes into the UI. */
+async function enter(user){
+  const biz=user.user_metadata?.biz||'My business';
+  let m=must(await sb.from('members').select('org_id, role, organizations(name)').limit(1));
+  if(!m.length){const id=must(await sb.rpc('create_org',{org_name:biz}));m=[{org_id:id,role:'owner',organizations:{name:biz}}]}
+  org=m[0].org_id;
+  await seed();
+  chans.forEach(c=>sb.removeChannel(c));
+  const tables=['conversations','messages','bookings','kb','doctors','closures','alerts','services','audit_events','outbox'];
+  chans=tables.map(t=>sb.channel('rt-'+t).on('postgres_changes',{event:'*',schema:'public',table:t,filter:'org_id=eq.'+org},ping).subscribe());
+  const {data:pa}=await sb.rpc('is_platform_admin');
+  return{id:user.id,email:user.email,biz:m[0].organizations.name,org,role:m[0].role,platformAdmin:!!pa};
+}
+async function seed(){
+  const empty=async t=>!(await sb.from(TABLE[t]).select('id',{count:'exact',head:true})).count;
+  if(await empty('services'))must(await sb.from('services').insert(DEFAULT_SERVICES.map(name=>({org_id:org,name}))));
+  if(await empty('doctors'))must(await sb.from('doctors').insert(DEFAULT_DOCTORS.map(d=>({org_id:org,...TO.doctors(d)}))));
+}
+
+export const remote={
+  async signUp(email,password,biz){
+    const r=must(await sb.auth.signUp({email,password,options:{data:{biz}}}));
+    if(!r.session)throw Error('Check your email to confirm your account, then sign in.');
+    return enter(r.user);
+  },
+  async signIn(email,password){return enter(must(await sb.auth.signInWithPassword({email,password})).user)},
+  async session(){const {data}=await sb.auth.getSession();return data.session?enter(data.session.user):null},
+  async signOut(){await sb.auth.signOut();chans.forEach(c=>sb.removeChannel(c));chans=[];org=null},
+
+  /* RLS scopes every query to the caller's organization, so the uid argument is unused here. */
+  async list(t){
+    if(t==='convos'){
+      const d=must(await sb.from('conversations').select('*, messages(role,body,meta,created_at)').order('created_at',{ascending:false}));
+      return d.map(c=>({id:c.id,customer:c.customer,channel:c.channel,status:c.status,alerted:c.alerted,created:ms(c.created_at),
+        messages:[...c.messages].sort((a,b)=>ms(a.created_at)-ms(b.created_at)).map(m=>({r:m.role,t:m.body,at:ms(m.created_at),meta:m.meta||undefined}))}));
+    }
+    const d=must(await sb.from(TABLE[t]).select('*').order('created_at'));
+    return d.map(FROM[t]);
+  },
+  async add(t,_u,row){
+    if(t==='convos'){
+      const c=must(await sb.from('conversations').insert({org_id:org,customer:row.customer,channel:row.channel,status:row.status}).select().single());
+      if(row.messages?.length)must(await sb.from('messages').insert(row.messages.map(m=>({org_id:org,conversation_id:c.id,role:m.r,body:m.t,meta:m.meta??null}))));
+      ping();return{id:c.id};
+    }
+    if(t==='audit'){must(await sb.rpc('log_audit',{p_org:org,p_action:row.action,p_text:row.detail||''}));ping();return{}}   // one audit trail: audit_events
+    const out=must(await sb.from(TABLE[t]).insert({org_id:org,...TO[t](row)}).select().single());
+    ping();return FROM[t](out);
+  },
+  /* The UI sends the full message list; only the new tail is inserted. */
+  async patch(t,id,p){
+    if(t==='convos'){
+      if(p.messages){
+        const {count}=await sb.from('messages').select('id',{count:'exact',head:true}).eq('conversation_id',id);
+        const tail=p.messages.slice(count||0);
+        if(tail.length)must(await sb.from('messages').insert(tail.map(m=>({org_id:org,conversation_id:id,role:m.r,body:m.t,meta:m.meta??null}))));
+      }
+      const u={};if(p.status)u.status=p.status;if('alerted' in p)u.alerted=p.alerted;
+      if(Object.keys(u).length)must(await sb.from('conversations').update(u).eq('id',id));
+    }else must(await sb.from(TABLE[t]).update(patchOf(p)).eq('id',id));
+    ping();
+  },
+  async del(t,id){
+    if(t==='doctors')throw Error('Doctors are removed only through a confirmation card.');
+    must(await sb.from(TABLE[t]).delete().eq('id',id));ping();
+  },
+  /* Doctor removal: the server issues a 5-minute, single-use token bound to this user, clinic and doctor; Confirm redeems it. */
+  async requestDoctorDeletion(id){return must(await sb.rpc('request_doctor_deletion',{p_org:org,p_doctor:id}))},
+  async confirmDoctorDeletion(token){const r=must(await sb.rpc('confirm_doctor_deletion',{p_org:org,p_token:token}));ping();return r},
+  /* One transaction on the server: keeps existing records, skips duplicates unless replace is true, never deletes. */
+  async importSetup(_u,p,replace=false){
+    const r=must(await sb.rpc('import_setup',{p_org:org,p_doctors:p.doctors.map(d=>({name:d.name,specialty:d.specialty||'',services:d.services||[],days:d.days||[],start:d.start,end:d.end,slot:d.slot||30})),
+      p_answers:p.answers.map(a=>({title:a.title,body:a.body,keywords:a.keywords||''})),p_replace:!!replace}));
+    ping();return r;
+  },
+  /* A team message into one chat. The website chat shows it to the visitor on its next poll. */
+  async postMessage(convoId,text){must(await sb.from('messages').insert({org_id:org,conversation_id:convoId,role:'staff',body:text}));ping()},
+  async settings(){const d=must(await sb.from('settings').select('*').maybeSingle());return d?{greeting:d.greeting,tone:d.tone,handoff:d.handoff_phone,autoConfirm:!!d.auto_confirm_web}:{}},
+  async saveSettings(_u,v){must(await sb.from('settings').upsert({org_id:org,greeting:v.greeting,tone:v.tone,handoff_phone:v.handoff,...('autoConfirm' in v?{auto_confirm_web:!!v.autoConfirm}:{})}));ping()},
+  /* Runs in this browser with the local LLM provider; storage goes to Supabase. */
+  async respond(id,_text,uid){await respondWith(remote,id,uid)}
+};
+
+/* The signed-in Supabase client. The central tool executor uses it so row-level security applies to every tool call. */
+export const client=()=>sb;
+
+/* Short-lived session token, sent to the server with each AI request. */
+export async function accessToken(){const {data}=await sb.auth.getSession();return data.session?.access_token??null}
+
+/* Platform admin actions (only work for platform admins; the database checks each one). Null in the local demo. */
+export const adminApi=sb?{
+  async clinics(){return must(await sb.rpc('admin_list_orgs'))},
+  async plans(){return must(await sb.from('plans').select('name,label,daily_ai_limit').order('daily_ai_limit'))},
+  async setClinic(org,plan,override,model,widget){must(await sb.rpc('admin_set_org_ai',{org,p_plan:plan,p_override:override,p_model:model,p_widget:widget}))},
+  async setKey(org,key){must(await sb.rpc('admin_set_model_key',{org,p_key:key}))}
+}:null;

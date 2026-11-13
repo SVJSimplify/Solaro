@@ -1,0 +1,89 @@
+import {useState,useRef,useEffect,Fragment} from 'react';
+import {db} from '../lib/db';
+import {useAuth,useTable,useToast} from '../lib/hooks';import {Count,ago,RM} from '../lib/ui';
+import FormCard from '../lib/FormCard';
+import {REASON,phoneOf} from '../lib/reasons';
+import CallPanel from '../lib/CallPanel';
+import {useSearchParams} from 'react-router-dom';
+
+/* Open conversations with a critical or urgent reply surface first. */
+const isUrgent=x=>x.status==='handoff'&&x.messages.some(m=>m.meta?.urgent);
+/* Plain-language reason a chat needs a human. */
+/* Test chats: flagged on creation, or older ones named as test. */
+const isTest=x=>!!x.test||x.customer==='Test customer';
+const why=x=>REASON[[...x.messages].reverse().find(m=>m.meta?.reason)?.meta.reason]||REASON.other;
+
+export default function Inbox(){
+  const {user}=useAuth(),toast=useToast(),[cv]=useTable('convos');
+  const [params]=useSearchParams(),[sel,setSel]=useState(params.get('c')),[callOpen,setCallOpen]=useState(false),[typing,setTyping]=useState(null),[reply,setReply]=useState(''),[ask,setAsk]=useState('');
+  const seen=useRef({}),box=useRef(null);
+  const list=[...cv].sort((a,b)=>(Number(isUrgent(b))-Number(isUrgent(a)))||(b.created-a.created)),c=list.find(x=>x.id===sel)||list[0];
+  const open=cv.filter(x=>x.status==='handoff').length,bots=cv.reduce((n,x)=>n+x.messages.filter(m=>m.r==='bot').length,0);
+  const base=c?seen.current[c.id]??0:0;
+  useEffect(()=>{
+    if(c)seen.current[c.id]=c.messages.length;
+    box.current?.scrollTo({top:box.current.scrollHeight,behavior:RM?'auto':'smooth'});
+  });
+
+  const think=async(id,text)=>{
+    setTyping(id);
+    try{await db.respond(id,text,user.id)}catch(e){toast('Assistant error: '+e.message)}
+    setTyping(null);
+  };
+  /* Test chat: no scripted customer. You type as the customer; Solara answers with the same greeting the web widget shows. */
+  const sim=async()=>{
+    const greeting=(await db.settings(user.id)).greeting||'Hi! How can I help you today?';
+    const r=await db.add('convos',user.id,{customer:'Test customer',channel:'Web chat',status:'handled',test:true,messages:[{r:'bot',t:greeting,at:Date.now()}]});
+    setSel(r.id);toast('Test chat started');
+  };
+  const staff=async e=>{e.preventDefault();const v=reply.trim();if(!v)return;setReply('');
+    await db.patch('convos',c.id,{messages:[...c.messages,{r:'staff',t:v,at:Date.now()}],status:'handled'})};
+  const customer=async e=>{e.preventDefault();const v=ask.trim();if(!v)return;setAsk('');
+    await db.patch('convos',c.id,{messages:[...c.messages,{r:'cust',t:v,at:Date.now()}]});think(c.id,v)};
+  /* A submitted form becomes a customer message carrying its values; the model then reads it like any other message. */
+  const submitForm=async(form,{values,text,freeText})=>{
+    await db.patch('convos',c.id,{messages:[...c.messages,{r:'cust',t:text,at:Date.now(),meta:{fv:{id:form.id,values,freeText}}}]});
+    think(c.id,text);
+  };
+  const clearTests=async()=>{const t=cv.filter(isTest);if(!t.length)return toast('No test chats');if(!confirm(`Delete ${t.length} test chat(s)?`))return;for(const x of t)await db.del('convos',x.id);setSel(null);toast('Test chats cleared')};
+  /* Only test chats can be deleted. Real customer conversations are kept. */
+  const removeTest=async()=>{if(!confirm('Delete this test chat?'))return;await db.del('convos',c.id);setSel(null);toast('Test chat deleted')};
+  const resolve=async()=>{await db.patch('convos',c.id,{status:'handled',alerted:false});toast('Resolved')};
+
+  return(<>
+    <header><h1>Inbox</h1><span className="hdr-actions"><button className="btn ghost" onClick={clearTests}>Clear test chats</button><button className="btn amber" onClick={sim}>+ New test chat</button></span></header>
+    <div className="stats">
+      <div className="card stat"><b><Count n={cv.length}/></b><span>conversations</span></div>
+      <div className="card stat"><b><Count n={bots}/></b><span>answered by Solara</span></div>
+      <div className="card stat"><b><Count n={open}/></b><span>need your team</span></div>
+    </div>
+    <div className="inbox">
+      <div className="card list">
+        {list.map((x,i)=>(
+          <button key={x.id} className={'row st'+(isUrgent(x)?' urgent':'')} style={{'--i':Math.min(i,14)}} aria-current={x.id===c?.id} onClick={()=>setSel(x.id)}>
+            <b>{x.customer}<span className={'pill'+(x.status==='handoff'?' hot':'')+(isUrgent(x)?' urgent':'')}>{isUrgent(x)?'Urgent':x.status==='handoff'?'Needs a human':'Solara handled'}</span></b>
+            <small>{x.messages.at(-1)?.t}</small><small>{x.status==='handoff'?why(x)+' · ':''}{x.channel} · {ago(x.created)}</small>
+          </button>))}
+        {!list.length&&<div className="empty">No conversations yet.</div>}
+      </div>
+      <div className="card thread">
+        {c?<>
+          <header><div><b>{c.customer}</b> <small>{c.channel}</small>{c.status==='handoff'&&(phoneOf(c.messages)?<button className="why" onClick={()=>setCallOpen(o=>!o)} aria-expanded={callOpen}> · {why(c)}</button>:<small className="why"> · {why(c)}</small>)}</div><span className="hdr-actions">{c.status==='handoff'&&<button className="btn sm" onClick={resolve}>Mark resolved</button>}{isTest(c)&&<button className="btn sm ghost" onClick={removeTest}>Delete test chat</button>}</span></header>
+          {callOpen&&c.status==='handoff'&&phoneOf(c.messages)&&<CallPanel phone={phoneOf(c.messages)} onClose={()=>setCallOpen(false)}/>}
+          <div className="msgs" ref={box} aria-live="polite">
+            {c.messages.map((m,i)=>(
+              <Fragment key={i}>
+                <div className={'m '+(m.r==='cust'?'':m.r)+(i>=base?' pop':'')} style={{'--i':Math.max(0,i-base)}}>
+                  <small>{m.r==='bot'?'Solara':m.r==='staff'?'You':c.customer}</small>{m.t}
+                </div>
+                {m.meta?.form&&<FormCard form={m.meta.form} done={c.messages.some(x=>x.meta?.fv?.id===m.meta.form.id)} onSubmit={submitForm}/>}
+              </Fragment>))}
+            {typing===c.id&&<div className="m bot typing" aria-label="Solara is typing"><i/><i/><i/></div>}
+          </div>
+          <form className="send" onSubmit={staff}><input value={reply} onChange={e=>setReply(e.target.value)} placeholder="Reply as a team member…" aria-label="Reply"/><button className="btn">Send</button></form>
+          <form className="send" style={{paddingTop:0,border:0}} onSubmit={customer}><input value={ask} onChange={e=>setAsk(e.target.value)} placeholder="Type as the customer…" aria-label="Customer message"/><button className="btn ghost">Send as customer</button></form>
+        </>:<div className="empty">Select a conversation.</div>}
+      </div>
+    </div>
+  </>);
+}

@@ -1,0 +1,27 @@
+{
+  "name": "solara-dashboard",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test:tools": "node --test tests/tools/unit.test.mjs",
+    "test:db": "node --test tests/db/information.test.mjs tests/db/tools.test.mjs",
+    "test:backfill": "node --test tests/db/backfill.test.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.119.0",
+    "pdfjs-dist": "^4.10.38",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.2",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "pg": "^8.23.1",
+    "vite": "^5.4.8"
+  }
+}
