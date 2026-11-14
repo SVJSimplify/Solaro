@@ -180,7 +180,8 @@ export const remote={
   async widgetKey(){return must(await sb.rpc('widget_key_get',{p_org:org}))},
   async widgetKeyRotate(){const k=must(await sb.rpc('widget_key_rotate',{p_org:org}));return k},
   async widgetInstalls(){const r=await sb.from('widget_installs').select('origin,first_seen,last_seen').eq('org_id',org).order('last_seen',{ascending:false});return r.error?null:r.data},
-  async settings(){const d=must(await sb.from('settings').select('*').eq('org_id',org).maybeSingle());return d?{greeting:d.greeting,tone:d.tone,handoff:d.handoff_phone,autoConfirm:!!d.auto_confirm_web}:{}},
+  async settings(){const d=must(await sb.from('settings').select('*').eq('org_id',org).maybeSingle());return d?{greeting:d.greeting,tone:d.tone,handoff:d.handoff_phone,autoConfirm:!!d.auto_confirm_web,autonomy:d.autonomy||'assisted',autonomyAck:d.autonomy_ack||null}:{}},
+  async setAutonomy(_u,mode,confirmText){const r=must(await sb.rpc('set_autonomy',{p_org:org,p_mode:mode,p_confirm:confirmText??null}));ping('settings');ping('audit');return r},
   /* Clinic hours. The database keeps every doctor inside them and updates doctors when they change. */
   /* Clinic hours by weekday: {"0".."6":{start,end}}; a missing day is closed. Edited in Knowledge; the database keeps the Hours answer in step. */
   async clinicHours(){return must(await sb.from('settings').select('hours').eq('org_id',org).maybeSingle())?.hours??{}},
@@ -188,7 +189,7 @@ export const remote={
   /* Logs: kind activity|messages|handoffs; ids, or a period [from,to). Returns how many were removed. */
   async deleteLogs(_u,kind,{ids,from,to}={}){const n=must(await sb.rpc('delete_logs',{p_org:org,p_kind:kind,p_ids:ids??null,p_from:from??null,p_to:to??null}));ping('audit');ping('outbox');ping('alerts');return n},
   async removeInstall(_u,origin){must(await sb.from('widget_installs').delete().eq('org_id',org).eq('origin',origin))},
-  async saveSettings(_u,v){must(await sb.from('settings').upsert({org_id:org,greeting:v.greeting,tone:v.tone,handoff_phone:v.handoff,...('autoConfirm' in v?{auto_confirm_web:!!v.autoConfirm}:{})}));ping()},
+  async saveSettings(_u,v){must(await sb.from('settings').upsert({org_id:org,greeting:v.greeting,tone:v.tone,handoff_phone:v.handoff}));ping()},
   /* Appointment actions. Each is one transaction on the server: the change, the audit record and the patient's message. */
   async bookingCreate(_u,r){const x=must(await sb.rpc('booking_create',{p_org:org,p_name:r.name,p_phone:r.phone,p_service:r.service||'',p_when:r.when,p_doctor:r.doctor_id}));ping('bookings');return x},
   async bookingDecide(_u,id,ok){const x=must(await sb.rpc('booking_decide',{p_id:id,p_confirm:!!ok}));ping('bookings');return x},

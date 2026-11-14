@@ -1,4 +1,5 @@
 import {useState,useEffect} from 'react';
+import Autonomy from '../lib/Autonomy';
 import {db} from '../lib/db';import {useAuth,useTable,useToast} from '../lib/hooks';import {normalizePhone} from '../lib/phone';import {Field,PhoneField,problem,phoneProblem} from '../lib/fields';
 
 export default function Settings(){
@@ -21,11 +22,10 @@ export default function Settings(){
       <Field id="g" label="Greeting" kind="line" value={s.greeting} onChange={put('greeting')} disabled={!canManage} count hint="The first thing patients read in the chat."/>
       <div className="f"><label htmlFor="tn">Tone</label><select id="tn" value={s.tone} onChange={set('tone')} disabled={!canManage}>{['friendly','formal','casual'].map(o=><option key={o}>{o}</option>)}</select></div>
       <PhoneField id="h" label="Hand-off phone number" value={s.handoff} onChange={put('handoff')} tz={me.tz} required={false} disabled={!canManage} autoComplete="tel" hint="Patients are given this number when Solara hands a chat to your team."/>
-      <div className="f"><label><input type="checkbox" checked={!!s.autoConfirm} onChange={e=>setS({...s,autoConfirm:e.target.checked})} disabled={!canManage}/> Confirm website bookings automatically</label>
-        <small className="route">Off: website bookings arrive as requests on the Bookings page and the patient is told once your team confirms. On: open times are booked straight away.</small></div>
       <p className="err" role="alert">{err}</p>
       {canManage&&<button className="btn">Save settings</button>}
     </form>
+    <Autonomy/>
     <section className="card st" style={{maxWidth:520,marginTop:16}}>
       <h3>Clinic hours</h3>
       <p className="route">Opening hours are set in Knowledge, with a different time for each day if you need. Doctors' open times, the website chat and Solara's answers all follow them.</p>
