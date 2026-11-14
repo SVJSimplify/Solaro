@@ -14,6 +14,9 @@ async function call(path,body){
 }
 
 const isBooking=f=>['name','phone','service','when'].every(n=>f?.fields?.some(x=>x.name===n));
+/* Slots arrive as 24h "HH:MM"; show US-friendly 12h labels without changing the submitted value. */
+const t12=t=>{const [h,m]=t.split(':').map(Number);return `${h%12||12}:${String(m).padStart(2,'0')} ${h<12?'AM':'PM'}`};
+const initials=n=>(n||'C').trim().split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase();
 const localToday=()=>{const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,10)};
 
 /* Booking request: the visitor picks a service and a day, sees the clinic's real open times (doctor schedules, closures and
@@ -52,7 +55,7 @@ function BookingPicker({form,chat,onDone,onCancel}){
       <div className="f"><label htmlFor="bk-date">Day *</label><input id="bk-date" type="date" min={localToday()} value={v.date} onChange={set('date')} required/></div>
       <fieldset className="wg-slots"><legend>Open times</legend>
         {slots===null&&!note&&<p className="wg-note">Checking open times…</p>}
-        {slots?.length>0&&slots.map(t=><button type="button" key={t} className={'wg-slot'+(v.time===t?' on':'')} aria-pressed={v.time===t} onClick={()=>setV(o=>({...o,time:t}))}>{t}</button>)}
+        {slots?.length>0&&slots.map(t=><button type="button" key={t} className={'wg-slot'+(v.time===t?' on':'')} aria-pressed={v.time===t} onClick={()=>setV(o=>({...o,time:t}))}>{t12(t)}</button>)}
         {(slots?.length===0||note)&&<p className="wg-note">{note||'No open times that day. Try another day.'}</p>}
       </fieldset>
       {err&&<p className="wg-err" role="alert">{err}</p>}
@@ -104,7 +107,7 @@ function ManagePanel({chat,onClose,onChanged}){
         <div className="f"><label htmlFor="mg-date">New day</label><input id="mg-date" type="date" min={localToday()} value={date} onChange={e=>{setDate(e.target.value);setTime('')}}/></div>
         <fieldset className="wg-slots"><legend>Open times</legend>
           {slots===null&&<p className="wg-note">Checking open times…</p>}
-          {slots?.map(t=><button type="button" key={t} className={'wg-slot'+(time===t?' on':'')} aria-pressed={time===t} onClick={()=>setTime(t)}>{t}</button>)}
+          {slots?.map(t=><button type="button" key={t} className={'wg-slot'+(time===t?' on':'')} aria-pressed={time===t} onClick={()=>setTime(t)}>{t12(t)}</button>)}
           {slots?.length===0&&<p className="wg-note">No open times that day. Try another day.</p>}
         </fieldset>
         <div className="acts">
@@ -185,16 +188,22 @@ export default function Widget(){
 
   if(!org)return<div className="wg"><p className="wg-err" role="alert">This chat link is missing its clinic.</p></div>;
 
+  // Inside the embed iframe on phones, the launcher's close button sits over the header's right edge.
+  const embedded=(()=>{try{return window.self!==window.top}catch{return true}})();
   return(
-    <div className="wg">
-      <header className="wg-head"><div><h1>{name}</h1><p>Chat with us</p></div>
-        {chat&&!manage&&<button type="button" className="btn ghost sm" onClick={()=>setManage(true)}>Manage my appointment</button>}</header>
+    <div className={'wg'+(embedded?' wg--embed':'')}>
+      <header className="wg-head">
+        <span className="wg-avatar" aria-hidden="true">{initials(name)}</span>
+        <div className="wg-id"><h1>{name}</h1><p><span className="wg-dot" aria-hidden="true"/>Online now</p></div>
+        {chat&&!manage&&<button type="button" className="wg-link" onClick={()=>setManage(true)}>Manage booking</button>}
+      </header>
       <div className="wg-log" ref={logRef} role="log" aria-live="polite" aria-label="Conversation">
-        <div className="wg-msg bot"><small>Solara</small>{greeting}</div>
+        <div className="wg-msg bot"><span className="sr">Assistant: </span>{greeting}</div>
         {msgs.map((m,i)=>(
           <div key={i} className={'wg-msg '+(m.role==='cust'?'me':m.role)}>
-            <small>{m.role==='cust'?'You':m.role==='staff'?'Team':'Solara'}</small>{m.body}
+            {m.role==='staff'?<small className="wg-who">{name} team</small>:<span className="sr">{m.role==='cust'?'You: ':'Assistant: '}</span>}{m.body}
           </div>))}
+        {busy&&<div className="wg-typing" aria-label="Assistant is typing"><i/><i/><i/></div>}
         {manage&&chat&&<ManagePanel chat={chat} onClose={()=>setManage(false)} onChanged={()=>poll(chat)}/>}
         {status==='handoff'&&<div className="wg-note">Our team has been notified and will reply here.</div>}
         {form&&isBooking(form)&&chat&&<BookingPicker form={form} chat={chat} onDone={()=>{setForm(null);poll(chat)}} onCancel={()=>setForm(null)}/>}
@@ -219,9 +228,12 @@ export default function Widget(){
       {err&&<p className="wg-err" role="alert">{err}</p>}
       <form className="wg-input" onSubmit={submitText}>
         <label htmlFor="wg-text" className="sr">Type your message</label>
-        <input id="wg-text" value={text} onChange={e=>setText(e.target.value)} placeholder="Type your message" maxLength={1000} disabled={!chat||busy}/>
-        <button className="btn" disabled={!chat||busy||!text.trim()}>{busy?'Sending…':'Send'}</button>
+        <input id="wg-text" value={text} onChange={e=>setText(e.target.value)} placeholder="Ask a question or book a visit" maxLength={1000} disabled={!chat||busy} autoComplete="off"/>
+        <button className="wg-send" disabled={!chat||busy||!text.trim()} aria-label={busy?'Sending':'Send message'}>
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 12h14M12 5l7 7-7 7" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </button>
       </form>
+      <p className="wg-foot">Powered by Solara</p>
     </div>
   );
 }

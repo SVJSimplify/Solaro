@@ -1,27 +1,71 @@
-/* Website chat: uses the app's theme variables, so it matches the dashboard in light and dark. */
-.wg{display:flex;flex-direction:column;height:100vh;height:100dvh;background:var(--bg);color:var(--tx);font:400 1rem/1.5 var(--ft)}
-.wg-head{padding:14px 16px;border-bottom:1px solid var(--ln);background:var(--sf)}
-.wg-head h1{font-size:1.1rem}.wg-head p{margin:0;color:var(--mu);font-size:.85rem}
-.wg-log{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;scroll-behavior:smooth}
-.wg-msg{max-width:85%;padding:10px 14px;border-radius:16px;background:var(--sf);border:1px solid var(--ln);white-space:pre-wrap;word-wrap:break-word;animation:up .35s var(--ez) both}
-.wg-msg small{display:block;font-size:.72rem;color:var(--mu);margin-bottom:2px}
-.wg-msg.me{align-self:flex-end;background:var(--amber1);border-color:var(--amber1)}
-.wg-msg.staff{border-color:var(--coral)}
-.wg-note{align-self:center;font-size:.85rem;color:var(--mu);text-align:center;padding:6px 10px}
-.wg-form{background:var(--sf);border:1px solid var(--ln);border-radius:16px;padding:14px;animation:up .35s var(--ez) both}
-.wg-form h2{font-size:1rem;margin-bottom:10px}
-.wg-form label{font-size:.9rem}
-.wg-form input,.wg-form select,.wg-form textarea{font-size:1rem}
-.wg-input{display:flex;gap:8px;padding:12px;border-top:1px solid var(--ln);background:var(--sf)}
-.wg-input input{flex:1;font-size:1rem}
-.wg-err{margin:0;padding:8px 14px;color:var(--coral6);font-size:.9rem}
+/* Website chat. Patient-facing and embedded on clinic sites, so it uses its own fixed light palette
+   (Solara "Warm Sunrise") instead of following the dashboard's light/dark theme. */
+.wg{
+  --w-bg:#FFFBF5;--w-sf:#fff;--w-sf2:#FFF6E5;--w-ln:#F0E4D2;--w-ln2:#E2D2BA;
+  --w-tx:#183F3D;--w-mu:#5E7472;--w-coral:#F25C54;--w-coral6:#C9413A;--w-amber:#F7B32B;--w-amber1:#FEF0CC;
+  --w-ease:cubic-bezier(.22,1,.36,1);
+  display:flex;flex-direction:column;height:100vh;height:100dvh;background:var(--w-bg);color:var(--w-tx);
+  font:400 .97rem/1.5 var(--ft);color-scheme:light
+}
+@media (min-width:600px){.wg{max-width:460px;margin:0 auto;border-inline:1px solid var(--w-ln)}}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-@media (min-width:600px){.wg{max-width:460px;margin:0 auto;border-left:1px solid var(--ln);border-right:1px solid var(--ln)}}
-.wg-slots{border:0;padding:0;margin:4px 0 10px;display:flex;flex-wrap:wrap;gap:6px}
-.wg-slots legend{font-size:.9rem;margin-bottom:6px;padding:0}
-.wg-slot{min-width:64px;padding:8px 10px;border-radius:10px;border:1px solid var(--ln);background:var(--bg);color:var(--tx);font:inherit;cursor:pointer}
-.wg-slot.on{background:var(--amber1);border-color:var(--amber1);font-weight:600}
-.wg-slot:focus-visible{outline:2px solid var(--coral);outline-offset:2px}
+
+/* Header */
+.wg-head{display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--w-sf);border-bottom:1px solid var(--w-ln)}
+.wg-avatar{flex:none;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font:700 .9rem/1 var(--fd,inherit);
+  color:#fff;background:linear-gradient(140deg,var(--w-coral),var(--w-amber));letter-spacing:.02em}
+.wg-id{flex:1;min-width:0}
+.wg-id h1{font-size:1rem;font-weight:700;line-height:1.25;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wg-id p{margin:2px 0 0;font-size:.8rem;color:var(--w-mu);display:flex;align-items:center;gap:6px;white-space:nowrap}
+.wg-dot{width:7px;height:7px;border-radius:50%;background:#2E9E6B;box-shadow:0 0 0 3px #2E9E6B22}
+.wg-link{flex:none;background:none;border:0;padding:8px 4px;min-height:40px;font:600 .82rem var(--fd,inherit);color:var(--w-coral6);
+  cursor:pointer;text-decoration:underline;text-underline-offset:3px;text-decoration-color:#C9413A55}
+.wg-link:hover{text-decoration-color:currentColor}
+
+/* Conversation */
+.wg-log{flex:1;overflow-y:auto;padding:18px 14px;display:flex;flex-direction:column;gap:8px;scroll-behavior:smooth}
+.wg-msg{max-width:82%;padding:10px 14px;border-radius:18px;white-space:pre-wrap;word-wrap:break-word;animation:wgIn .32s var(--w-ease) both}
+.wg-msg.bot{align-self:flex-start;background:var(--w-sf);border-bottom-left-radius:6px;box-shadow:0 1px 2px #183F3D14,0 0 0 1px var(--w-ln)}
+.wg-msg.me{align-self:flex-end;background:var(--w-coral6);color:#fff;border-bottom-right-radius:6px}
+.wg-msg.me+.wg-msg.me,.wg-msg.bot+.wg-msg.bot{margin-top:-4px}
+.wg-msg.staff{align-self:flex-start;background:var(--w-amber1);border-bottom-left-radius:6px;box-shadow:0 0 0 1px #F7B32B55}
+.wg-who{display:block;font-size:.72rem;font-weight:700;letter-spacing:.02em;color:#8A5A00;margin-bottom:2px}
+.wg-note{align-self:center;font-size:.82rem;color:var(--w-mu);text-align:center;padding:4px 10px;margin:0}
+.wg-typing{align-self:flex-start;display:flex;gap:4px;padding:13px 14px;background:var(--w-sf);border-radius:18px;border-bottom-left-radius:6px;box-shadow:0 0 0 1px var(--w-ln)}
+.wg-typing i{width:6px;height:6px;border-radius:50%;background:var(--w-mu);opacity:.4;animation:wgDot 1.1s infinite}
+.wg-typing i:nth-child(2){animation-delay:.15s}.wg-typing i:nth-child(3){animation-delay:.3s}
+@keyframes wgIn{from{opacity:0;transform:translateY(6px)}}
+@keyframes wgDot{0%,60%,100%{opacity:.35;transform:none}30%{opacity:1;transform:translateY(-3px)}}
+
+/* Inline forms (booking, enquiry, manage) */
+.wg-form{background:var(--w-sf);border-radius:16px;padding:16px;box-shadow:0 0 0 1px var(--w-ln),0 6px 20px -12px #183F3D33;animation:wgIn .32s var(--w-ease) both}
+.wg-form h2{font-size:1rem;font-weight:700;margin:0 0 12px}
+.wg-form .f{margin-bottom:12px}
+.wg-form label,.wg-slots legend{font-size:.82rem;font-weight:600;color:var(--w-mu)}
+.wg-form input,.wg-form select,.wg-form textarea{font-size:1rem}
 .wg-form .acts{display:flex;gap:8px;flex-wrap:wrap}
-.wg-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.wg-appt{display:flex;flex-direction:column;gap:6px;padding:10px 0;border-top:1px solid var(--ln)}
+.wg-slots{border:0;padding:0;margin:2px 0 14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(82px,1fr));gap:6px}
+.wg-slots legend{margin-bottom:8px;padding:0}
+.wg-slots .wg-note{grid-column:1/-1;text-align:left;padding:0}
+.wg-slot{min-height:40px;padding:6px 8px;border-radius:10px;border:1px solid var(--w-ln2);background:var(--w-sf);color:var(--w-tx);
+  font:600 .85rem/1 var(--fd,inherit);cursor:pointer;transition:border-color .15s,background-color .15s,color .15s}
+.wg-slot:hover{border-color:var(--w-coral)}
+.wg-slot.on{background:var(--w-coral6);border-color:var(--w-coral6);color:#fff}
+.wg-slot:focus-visible,.wg-link:focus-visible,.wg-send:focus-visible{outline:2px solid var(--w-amber);outline-offset:2px}
+.wg-appt{display:flex;flex-direction:column;gap:6px;padding:10px 0;border-top:1px solid var(--w-ln)}
+.wg .btn:disabled{background:#E7DED2;border-color:#E7DED2;color:#7D8B89;opacity:1;cursor:not-allowed}
+.wg .btn.ghost:disabled{background:transparent;border-color:var(--w-ln)}
+
+/* Composer */
+.wg-input{display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--w-sf);border-top:1px solid var(--w-ln)}
+.wg-input input{flex:1;min-width:0;min-height:44px;font-size:1rem;border-radius:999px;padding:0 16px;background:var(--w-bg);border:1px solid var(--w-ln2)}
+.wg-input input:focus{border-color:var(--w-coral)}
+.wg-send{flex:none;width:44px;height:44px;border-radius:50%;border:0;display:grid;place-items:center;cursor:pointer;
+  background:var(--w-coral6);color:#fff;transition:background-color .15s,opacity .15s}
+.wg-send:hover:not(:disabled){background:#A8352F}
+.wg-send:disabled{background:#E7DED2;color:#7D8B89;cursor:not-allowed}
+.wg-err{margin:0;padding:8px 16px;color:var(--w-coral6);font-size:.88rem;background:var(--w-sf)}
+.wg-foot{margin:0;padding:0 0 8px;text-align:center;font-size:.7rem;color:#8C9C9A;background:var(--w-sf)}
+
+@media (prefers-reduced-motion:reduce){.wg *{animation:none!important;transition:none!important}.wg-log{scroll-behavior:auto}}
+@media (max-width:519px){.wg--embed .wg-head{padding-right:68px}}
