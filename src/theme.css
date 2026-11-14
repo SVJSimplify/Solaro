@@ -8,16 +8,17 @@
   --side:#F25C54;--side-tx:#FFFFFF;--side-hi:rgba(255,255,255,.16);--side-ln:rgba(255,255,255,.22);
   --r-card:16px;--r-ctl:10px;--pop:0 20px 50px -14px rgba(74,44,36,.32),0 2px 8px rgba(74,44,36,.08);
 }
-@media(prefers-color-scheme:dark){:root{--bg:#2A1A15;--sf:#3A251E;--sf2:#33201A;--ln:#5A4036;--ln2:#76584B;--tx:#FFF6E5;--mu:#E2CCBC;--ok1:#1E3B2B;--bad1:#4A1F1C;--side:#C9413A;--amber1:#4A3A1C}}
+/* Solara is a light-only product (forms.css pins the light palette), so there are no dark-mode overrides here:
+   half-applied ones made some panels dark and some text unreadable on devices set to dark mode. */
 
 /* ---------- Type ---------- */
 body{font-size:.95rem;line-height:1.5}
 h1{font:600 1.6rem/1.2 var(--fd);letter-spacing:-.02em}
 h2{font:600 1.15rem/1.3 var(--fd)}h3{font:600 1rem/1.3 var(--fd);margin:0}h4{font:600 .9rem var(--fd);margin:0}
 small{font-size:.8rem}.route{font-size:.85rem;color:var(--mu);margin:4px 0 8px}
-a{color:var(--coral6)}@media(prefers-color-scheme:dark){a,.lk{color:#FF9A93}}
+a{color:var(--coral6)}
 .ic{flex:none;display:block}
-.warn{color:var(--bad)}@media(prefers-color-scheme:dark){.warn{color:#FF9A93}}
+.warn{color:var(--bad)}
 
 /* ---------- Motion: only where it answers an action ---------- */
 .st,.empty,#app.in aside,#app.in .vw>header,#app.in .stats,.badge,.m.pop,.setup-msg,.tab.on{animation:none}
@@ -63,7 +64,6 @@ label,.f label,.flabel{font:600 .82rem var(--ft);color:var(--mu);margin:0}
 @keyframes skel{to{background-position:-200% 0}}
 .note{display:flex;gap:10px;align-items:flex-start;background:var(--amber1);color:var(--plum);border-radius:12px;padding:10px 14px;font-size:.88rem;margin-bottom:0}
 .note .ic{margin-top:1px}.note .lk{color:inherit}.note.bad{background:var(--bad1);color:var(--bad)}
-@media(prefers-color-scheme:dark){.note{color:var(--cream)}.note.bad{color:#FFB4AE}}
 #toast{border-radius:12px;padding:11px 18px;font-size:.9rem;box-shadow:var(--pop);max-width:min(92vw,520px);z-index:90}
 
 /* Status: one vocabulary everywhere (chips, slots, timeline, charts). Always paired with its word. */
@@ -72,7 +72,6 @@ label,.f label,.flabel{font:600 .82rem var(--ft);color:var(--mu);margin:0}
 .chip.booked{background:var(--amber);color:var(--plum)}
 .chip.completed{background:var(--ok1);color:var(--ok)}.chip.no_show{background:var(--bad1);color:var(--bad)}
 .chip.cancelled{background:transparent;border-color:var(--ln2);color:var(--mu);text-decoration:line-through}
-@media(prefers-color-scheme:dark){.chip.completed{color:#8FE0B0}.chip.no_show{color:#FFB4AE}.chip.requested{color:#FF9A93;border-color:#FF9A93}}
 .badge{background:var(--amber);color:var(--plum);border-radius:999px;font:700 .72rem var(--fd);padding:2px 8px;min-width:22px;text-align:center}
 .pill{font:600 .72rem var(--fd);padding:3px 9px;border-radius:999px;background:var(--sf2);color:var(--mu);white-space:nowrap}
 .pill.hot{background:var(--coral6);color:#fff;animation:none}.pill.urgent{background:var(--bad);color:#fff;animation:none}
@@ -156,7 +155,6 @@ main{padding:28px 32px 40px}
 .slot.booked.completed{background:var(--ok1);color:var(--ok)}.slot.booked.completed b{color:var(--ok)}
 .slot.booked.no_show{background:var(--bad1);color:var(--bad)}.slot.booked.no_show b{color:var(--bad)}
 .slot.sel{background:var(--coral6);border-color:var(--coral6);color:#fff}.slot.sel b{color:#fff}
-@media(prefers-color-scheme:dark){.slot.sel{background:var(--cream);color:var(--plum)}.slot.sel b{color:var(--plum)}.slot.booked.completed,.slot.booked.completed b{color:#8FE0B0}.slot.booked.no_show,.slot.booked.no_show b{color:#FFB4AE}}
 .slots.pick{max-height:260px;overflow:auto;padding:2px;margin-top:10px}
 .week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;align-items:start}
 .wday{background:var(--sf);border:1px solid var(--ln);border-radius:14px;padding:8px;display:grid;gap:6px;min-height:140px;align-content:start}
@@ -192,7 +190,6 @@ main{padding:28px 32px 40px}
 .todo-i b{font:700 1.15rem var(--fd)}.todo-i span{flex:1}.todo-i>.ic:first-child{color:var(--coral6)}.todo-i>.ic:last-child{color:var(--mu)}
 .todo-i:hover{background:var(--sf2)}
 .todo.clear p{display:flex;align-items:center;gap:8px;margin:0;color:var(--ok);font-weight:500;background:var(--ok1);border-radius:12px;padding:11px 14px}
-@media(prefers-color-scheme:dark){.todo.clear p{color:#8FE0B0}}
 .tl-wrap{overflow-x:auto;margin:0 -6px;padding:0 6px}
 .tl{min-width:620px;display:grid;gap:6px}
 .tl-row{display:grid;grid-template-columns:150px minmax(0,1fr);gap:12px;align-items:center}
@@ -258,7 +255,7 @@ a.tile{transition:border-color .15s}a.tile:hover{border-color:var(--coral6)}
 .row[aria-current=true] small{color:var(--plum)}.row.urgent{border-left:0;box-shadow:inset 4px 0 0 var(--bad)}
 .row b{font-weight:600;align-items:center}
 .thread{padding:0;overflow:hidden}.thread>header{padding:14px 18px}.thread>header .why{font-size:.86rem}
-.msgs{background:var(--sf2);padding:18px;gap:10px}
+.msgs{background:#211A18;padding:18px;gap:10px}
 .m{max-width:min(78%,560px);padding:9px 14px;border-radius:14px 14px 14px 4px;font-size:.92rem;line-height:1.45;border:1px solid var(--ln)}
 .m small{opacity:.75;font-size:.7rem;margin-bottom:2px}
 .m.bot{background:var(--sf);color:var(--tx);border:1px solid var(--ln);border-left:3px solid var(--coral);border-radius:14px 14px 4px 14px}
@@ -332,7 +329,6 @@ a.tile{transition:border-color .15s}a.tile:hover{border-color:var(--coral6)}
 .f.bad input,.f.bad textarea{border-color:var(--bad)}.f.bad input:focus,.f.bad textarea:focus{box-shadow:0 0 0 3px rgba(179,38,30,.18)}
 .phone{display:flex;gap:8px;align-items:stretch}.phone .seg{flex:none;align-self:center}.phone input{flex:1;min-width:0;font-variant-numeric:tabular-nums;letter-spacing:.02em}
 @media(max-width:420px){.phone{flex-direction:column}.phone .seg{align-self:flex-start}}
-@media(prefers-color-scheme:dark){.ferr{color:#FFB4AE}.m.staff,.setup-msg.me{background:#4A3A1C;border-color:#6B5426;color:var(--tx)}}
 /* Sidebar on the original coral: heavier white labels with a soft shadow so they stay legible on the lighter coral. */
 aside .tab,aside .who,aside .logo{text-shadow:0 1px 2px rgba(150,35,30,.35)}
 aside .tab{font-weight:600;font-size:.96rem;opacity:1}
