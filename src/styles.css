@@ -1,5 +1,5 @@
 
-:root{--coral:#F25C54;--coral6:#C9413A;--amber:#F7B32B;--amber1:#FEF0CC;--plum:#4A2C24;--plum7:#5E4150;--cream:#FFF6E5;--bg:#FFFBF2;--sf:#fff;--tx:#4A2C24;--mu:#5E4150;--ln:#EADFCB;--wm:#FFF6E5;--fd:'Outfit',system-ui,sans-serif;--ft:'DM Sans',system-ui,sans-serif;box-sizing:border-box;color-scheme:light}
+:root{--coral:#F25C54;--coral6:#C9413A;--amber:#F7B32B;--amber1:#FEF0CC;--plum:#5B4038;--plum7:#5E4150;--cream:#FFF6E5;--bg:#FFFBF2;--sf:#fff;--tx:#5B4038;--mu:#5E4150;--ln:#EADFCB;--wm:#FFF6E5;--fd:'Outfit',system-ui,sans-serif;--ft:'DM Sans',system-ui,sans-serif;box-sizing:border-box;color-scheme:light}
 @media(prefers-color-scheme:dark){:root{--bg:#2A1520;--sf:#3A251E;--tx:#FFF6E5;--mu:#E6D2C0;--ln:#5E4150;--wm:#331A25;color-scheme:dark}}
 *,*::before,*::after{box-sizing:inherit}
 html,body{height:100%;margin:0}

@@ -2,13 +2,13 @@
    Coral is for the sidebar, actions and things that need you; amber for confirmed and selected; warm cocoa for text; cream for surfaces.
    --plum is kept as the token name for the dark text tone so older styles follow it; it is a warm cocoa, not plum. */
 :root{
-  --coral:#F25C54;--coral6:#C9413A;--coral7:#A8352F;--amber:#F7B32B;--amber1:#FEF0CC;--plum:#4A2C24;--cream:#FFF6E5;
-  --bg:#FFFBF2;--sf:#fff;--sf2:#FFF6E5;--ln:#EFE2CC;--ln2:#DCC9AC;--tx:#4A2C24;--mu:#7A5A4E;
+  --coral:#F25C54;--coral6:#C9413A;--coral7:#A8352F;--amber:#F7B32B;--amber1:#FEF0CC;--plum:#5B4038;--cream:#FFF6E5;
+  --bg:#FFFBF2;--sf:#fff;--sf2:#FFF6E5;--ln:#EFE2CC;--ln2:#DCC9AC;--tx:#5B4038;--mu:#7A5A4E;
   --ok:#237A4B;--ok1:#DDF3E4;--bad:#B3261E;--bad1:#FBE0DD;--gone:#8E8377;
-  --side:#C9413A;--side-tx:#FFFFFF;--side-hi:rgba(255,255,255,.16);--side-ln:rgba(255,255,255,.22);
+  --side:#F25C54;--side-tx:#FFFFFF;--side-hi:rgba(255,255,255,.16);--side-ln:rgba(255,255,255,.22);
   --r-card:16px;--r-ctl:10px;--pop:0 20px 50px -14px rgba(74,44,36,.32),0 2px 8px rgba(74,44,36,.08);
 }
-@media(prefers-color-scheme:dark){:root{--bg:#2A1A15;--sf:#3A251E;--sf2:#33201A;--ln:#5A4036;--ln2:#76584B;--tx:#FFF6E5;--mu:#E2CCBC;--ok1:#1E3B2B;--bad1:#4A1F1C;--side:#9E342E;--amber1:#4A3A1C}}
+@media(prefers-color-scheme:dark){:root{--bg:#2A1A15;--sf:#3A251E;--sf2:#33201A;--ln:#5A4036;--ln2:#76584B;--tx:#FFF6E5;--mu:#E2CCBC;--ok1:#1E3B2B;--bad1:#4A1F1C;--side:#C9413A;--amber1:#4A3A1C}}
 
 /* ---------- Type ---------- */
 body{font-size:.95rem;line-height:1.5}
@@ -333,3 +333,7 @@ a.tile{transition:border-color .15s}a.tile:hover{border-color:var(--coral6)}
 .phone{display:flex;gap:8px;align-items:stretch}.phone .seg{flex:none;align-self:center}.phone input{flex:1;min-width:0;font-variant-numeric:tabular-nums;letter-spacing:.02em}
 @media(max-width:420px){.phone{flex-direction:column}.phone .seg{align-self:flex-start}}
 @media(prefers-color-scheme:dark){.ferr{color:#FFB4AE}.m.staff,.setup-msg.me{background:#4A3A1C;border-color:#6B5426;color:var(--tx)}}
+/* Sidebar on the original coral: heavier white labels with a soft shadow so they stay legible on the lighter coral. */
+aside .tab,aside .who,aside .logo{text-shadow:0 1px 2px rgba(150,35,30,.35)}
+aside .tab{font-weight:600;font-size:.96rem;opacity:1}
+aside .tab.on{text-shadow:none}
