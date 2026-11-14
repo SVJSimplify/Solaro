@@ -118,7 +118,11 @@ export function supabaseAdapter(sb){
         if(table==='bookings'&&opts.from)q=q.gte('starts_at',opts.from);
         if(table==='bookings'&&opts.to)q=q.lt('starts_at',opts.to);
         if(table==='bookings'&&opts.phone)q=q.eq('phone',opts.phone);
-        return must(await q.order(order).limit(table==='bookings'?20000:2000),{read:true}).map(FROM[table]);
+        const rows=must(await q.order(order).limit(table==='bookings'?20000:2000),{read:true}).map(FROM[table]);
+        if(table!=='doctors')return rows;
+        // Doctors carry the clinic's weekly hours, so every slot offered is inside both.
+        const h=must(await sb.from('settings').select('hours').eq('org_id',orgId).maybeSingle(),{read:true});
+        return h?.hours?rows.map(d=>({...d,clinic:h.hours})):rows;
       },
       async addBooking(orgId,b){
         const r=must(await sb.from('bookings').insert({org_id:orgId,name:b.name,phone:b.phone,service:b.service||'',starts_at:b.when,doctor_id:b.doctor_id||null,doctor:b.doctor||'',status:b.status||'booked',source:b.source||'staff',conversation_id:b.conversation_id||null}).select().single());

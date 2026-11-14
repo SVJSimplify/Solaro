@@ -1,5 +1,5 @@
 import {useCallback,useEffect,useState} from 'react';
-import {useAuth,useTable} from './hooks';
+import {useAuth,useTable,useClinicNow} from './hooks';
 import {clinicNow,openSlots} from './avail';
 import {isWhenField,serviceOf,whenLabel} from './whenField';
 import {formSubmission} from '../../supabase/functions/_shared/agent.js';
@@ -27,12 +27,11 @@ function rulesFor(f){
 /* The clinic's open times for a date (doctor hours, closures, leave and existing bookings), as unique "HH:MM".
    Display only: the booking tools re-check every request on the server. */
 function useOpenTimes(service){
-  const {user}=useAuth(),[docs]=useTable('doctors'),[rows]=useTable('bookings'),[closed]=useTable('closures'),[leave]=useTable('leave');
+  const {user}=useAuth(),[docs]=useTable('doctors'),[rows]=useTable('bookings'),[closed]=useTable('closures'),[leave]=useTable('leave'),now=useClinicNow(user?.tz);
   return useCallback(date=>{
     if(!docs.length)return[];
-    const now=clinicNow(user?.tz);
     return[...new Set(openSlots(docs,date,rows,leave,closed,{service:service||undefined,now}).map(s=>s.when.slice(11)))];
-  },[docs,rows,closed,leave,service,user?.tz]);
+  },[docs,rows,closed,leave,service,now]);
 }
 
 export default function FormCard({form,done,onSubmit}){

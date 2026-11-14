@@ -1,7 +1,7 @@
 import {useEffect,useMemo,useState} from 'react';
 import {useSearchParams} from 'react-router-dom';
 import {db} from '../lib/db';
-import {useAuth,useTable,useToast} from '../lib/hooks';
+import {useAuth,useTable,useToast,useClinicNow} from '../lib/hooks';
 import {DAYS,slotsFor,dateOf} from '../lib/schedule';
 import {clinicNow,addDays,nice,clock,STATUS,held,open,awayAt,closedOn,openSlots,conflictOf} from '../lib/avail';
 import DateButton from '../lib/DateButton';
@@ -47,7 +47,7 @@ function Lifecycle({b}){
 export default function Bookings(){
   const {user}=useAuth(),toast=useToast(),confirm=useConfirm(),[sp,setSp]=useSearchParams();
   const [docs]=useTable('doctors'),[rows]=useTable('bookings'),[closed]=useTable('closures'),[svc]=useTable('services'),[leave]=useTable('leave'),[out]=useTable('outbox');
-  const now=clinicNow(user.tz),today=now.slice(0,10),manager=!user.role||user.role==='owner'||user.role==='admin';
+  const now=useClinicNow(user.tz),today=now.slice(0,10),manager=!user.role||user.role==='owner'||user.role==='admin';
   // View, day and the open appointment live in the address, so Today and Insights can link straight to them and Back works.
   const view=VIEWS.some(v=>v[0]===sp.get('view'))?sp.get('view'):'day',date=/^\d{4}-\d\d-\d\d$/.test(sp.get('date')||'')?sp.get('date'):today,pickId=sp.get('id');
   const go=patch=>setSp(p=>{const n=new URLSearchParams(p);for(const [k,v] of Object.entries(patch))v==null||v===''?n.delete(k):n.set(k,v);return n},{replace:true});

@@ -119,3 +119,8 @@
 .wg .tc-half button[aria-pressed=true]{background:#D96F54;color:#1A1210}
 .wg .tc-slot{fill:#D96F54}.wg .tc-slot.on{fill:#F2A278}.wg .tc-hand,.wg .tc-pin{stroke:#F2A278;fill:#F2A278}
 .wg .tc-slot.shut{fill:none;stroke:#8A7A70}
+/* Smooth chat */
+.wg-msg.sending{opacity:.65}
+.wg .caret{display:inline-block;width:2px;height:1em;margin-left:2px;vertical-align:-2px;background:currentColor;opacity:.5;animation:wgcaret 1s steps(2) infinite}
+@keyframes wgcaret{50%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.wg .caret{animation:none}}

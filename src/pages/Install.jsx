@@ -68,7 +68,9 @@ export default function Install(){
         <p className="route">Open your website once after publishing, then check here.</p>
         {sites===null&&<p className="route">Install checking isn't switched on yet for your account. The chat still works once the code is on your site.</p>}
         {sites?.length===0&&<p className="inst-wait">Not seen on any website yet.</p>}
-        {sites?.length>0&&<ul className="inst-sites">{sites.map(s=><li key={s.origin}><span className="inst-dot"/><b>{s.origin.replace(/^https?:\/\//,'')}</b><small>last seen {ago(s.last_seen)}</small></li>)}</ul>}
+        {sites?.length>0&&<ul className="inst-sites">{sites.map(s=><li key={s.origin}><span className="inst-dot"/><b>{s.origin.replace(/^https?:\/\//,'')}</b><small>last seen {ago(s.last_seen)}</small>
+          {['owner','admin'].includes(me.role)&&<button type="button" className="row-del" style={{position:'static',opacity:1}} aria-label={'Remove '+s.origin} title="Remove from this list"
+            onClick={async()=>{try{await db.removeInstall(me.id,s.origin);setSites(x=>x.filter(y=>y.origin!==s.origin))}catch(e){toast(e.message)}}}>×</button>}</li>)}</ul>}
         <button type="button" className="btn ghost sm" onClick={check} disabled={checking}>{checking?'Checking…':'Check again'}</button>
       </section>
     </div>

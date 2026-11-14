@@ -1,4 +1,5 @@
 import {useState,useMemo} from 'react';
+import ClinicHours from '../lib/ClinicHours';
 import {Field,problem} from '../lib/fields';
 import {db} from '../lib/db';import {useAuth,useTable,useToast} from '../lib/hooks';import {wait,RM,ImportPreview} from '../lib/ui';
 import {parseSetup,EXAMPLE,diffImport} from '../lib/importer';
@@ -34,6 +35,7 @@ export default function Knowledge(){
     <header><h1>Knowledge</h1></header>
     <p style={{color:'var(--mu)',marginTop:-8}}>Solara answers from these entries. Anything it can’t match goes to your team.</p>
     {!canManage&&<p className="route">Only owners and admins can change these answers.</p>}
+    <ClinicHours canManage={canManage}/>
     {canManage&&<section className="card st quick">
       <h3>Quick setup</h3>
       <p className="route">Paste your schedule, or upload a file: .txt, .csv, Excel (.xlsx), Google Sheets (File → Download → .xlsx or .csv), or PDF. Lines with problems are listed, not skipped silently.</p>
@@ -53,10 +55,10 @@ export default function Knowledge(){
     </section>}
     <div className="grid2">
       <div>
-        {kb.map((x,i)=>(
+        {[...kb].sort((a,b)=>(b.managed?1:0)-(a.managed?1:0)).map((x,i)=>(
           <div key={x.id} className={'kb st'+(rm===x.id?' rm':'')} style={{'--i':Math.min(i,14)}}>
-            <div><b>{x.title}</b>{x.starter&&<span className="pill"> sample, check it</span>}<br/>{x.body}<br/><small>Triggers: {x.keywords}</small></div>
-            {canManage&&<button className="btn ghost sm" aria-label={'Delete '+x.title} onClick={()=>del(x.id)}>Delete</button>}
+            <div><b>{x.title}</b>{x.starter&&<span className="pill"> sample, check it</span>}{x.managed&&<span className="pill"> from clinic hours</span>}<br/>{x.body}<br/><small>Triggers: {x.keywords}</small></div>
+            {canManage&&!x.managed&&<button className="btn ghost sm" aria-label={'Delete '+x.title} onClick={()=>del(x.id)}>Delete</button>}
           </div>))}
         {!kb.length&&<div className="empty">Add your first answer.</div>}
       </div>

@@ -1,9 +1,9 @@
 import {useState} from 'react';
 import {Link,useNavigate} from 'react-router-dom';
 import {db} from '../lib/db';
-import {useAuth,useTable,useToast} from '../lib/hooks';
+import {useAuth,useTable,useToast,useClinicNow} from '../lib/hooks';
 import {clinicNow,addDays,nice,clock,STATUS,held,open,conflictOf,openSlots,closedOn} from '../lib/avail';
-import {DAYS,slotsFor,dateOf} from '../lib/schedule';
+import {DAYS,slotsFor,dateOf,hoursOn} from '../lib/schedule';
 import {Icon,Empty,ago,useConfirm} from '../lib/ui';
 
 const M=t=>{const [h,m]=t.split(':').map(Number);return h*60+m};
@@ -14,7 +14,7 @@ const hour=m=>{const h=Math.floor(m/60)%24;return `${h%12||12}${h<12?'am':'pm'}`
 export default function Today(){
   const {user}=useAuth(),toast=useToast(),nav=useNavigate(),confirm=useConfirm(),[busy,setBusy]=useState(false);
   const [rows]=useTable('bookings'),[docs]=useTable('doctors'),[closed]=useTable('closures'),[leave]=useTable('leave'),[cv]=useTable('convos'),[al]=useTable('alerts'),[out]=useTable('outbox'),[log]=useTable('audit');
-  const now=clinicNow(user.tz),today=now.slice(0,10),nowMin=M(now.slice(11));
+  const now=useClinicNow(user.tz),today=now.slice(0,10),nowMin=M(now.slice(11));
   const day=rows.filter(b=>held(b)&&dateOf(b.when)===today).sort((a,b)=>a.when.localeCompare(b.when));
   const shut=closedOn(today,closed,leave),left=day.filter(b=>open(b)&&b.when>=now).length;
   const requests=rows.filter(b=>b.status==='requested').sort((a,b)=>a.when.localeCompare(b.when));
@@ -33,8 +33,8 @@ export default function Today(){
   ].filter(x=>x[0]>0);
 
   // Timeline window: from the first doctor in to the last one out (or the day's appointments, if they fall outside).
-  const working=docs.filter(d=>slotsFor(d,today).length);
-  let t0=Math.min(...working.map(d=>M(d.start)),...day.map(b=>M(b.when.slice(11)))),t1=Math.max(...working.map(d=>M(d.end)),...day.map(b=>M(b.when.slice(11))+(b.duration||30)));
+  const working=docs.map(d=>hoursOn(d,today)).filter(Boolean);
+  let t0=Math.min(...working.map(h=>h.start),...day.map(b=>M(b.when.slice(11)))),t1=Math.max(...working.map(h=>h.end),...day.map(b=>M(b.when.slice(11))+(b.duration||30)));
   if(!isFinite(t0)||t1<=t0){t0=480;t1=1080}
   t0=Math.floor(t0/60)*60;t1=Math.ceil(t1/60)*60;
   const pos=m=>`${Math.max(0,Math.min(100,(m-t0)/(t1-t0)*100))}%`,span=(a,b)=>({left:pos(a),width:`${Math.max(0,(Math.min(b,t1)-Math.max(a,t0))/(t1-t0)*100)}%`});
@@ -64,13 +64,13 @@ export default function Today(){
       :<div className="tl-wrap"><div className="tl" style={{'--cols':hours.length-1}}>
         <div className="tl-row tl-axis"><span className="tl-name"/><div className="tl-lane">{hours.map(m=><i key={m} style={{left:pos(m)}}>{hour(m)}</i>)}</div></div>
         {docs.map(d=>{
-          const inToday=slotsFor(d,today).length>0,mine=day.filter(b=>b.doctor_id===d.id),away=leave.filter(e=>e.date===today&&e.doctor_id===d.id);
+          const hrs=hoursOn(d,today),inToday=slotsFor(d,today).length>0,mine=day.filter(b=>b.doctor_id===d.id),away=leave.filter(e=>e.date===today&&e.doctor_id===d.id);
           const free=inToday&&!shut?openSlots([d],today,rows,leave,closed,{now}).length:0;
           return(<div key={d.id} className="tl-row">
             <span className="tl-name"><b>{d.name}</b><small>{shut?'Closed':!inToday?'Not in today':away.some(e=>e.start==null)?'Away':free?<Link to={`/bookings?view=day&date=${today}&doctor=${d.id}`}>{free} open</Link>:'Full'}</small></span>
             <div className="tl-lane">
-              {inToday&&!shut&&<span className="tl-work" style={span(M(d.start),M(d.end))}/>}
-              {away.map(e=><span key={e.id} className="tl-away" style={span(e.start??M(d.start),e.end??M(d.end))} title={e.note||'Away'}>Away</span>)}
+              {inToday&&!shut&&<span className="tl-work" style={span(hrs.start,hrs.end)}/>}
+              {away.map(e=><span key={e.id} className="tl-away" style={span(e.start??hrs?.start??M(d.start),e.end??hrs?.end??M(d.end))} title={e.note||'Away'}>Away</span>)}
               {mine.map(b=><button key={b.id} className={'tl-appt '+b.status} style={span(M(b.when.slice(11)),M(b.when.slice(11))+(b.duration||30))} onClick={()=>openAppt(b)}
                 title={`${clock(b.when)} · ${b.name} · ${b.service||'appointment'} · ${STATUS[b.status]}`} aria-label={`${clock(b.when)}, ${b.name}, ${STATUS[b.status]}`}><span>{b.name}</span></button>)}
               {nowMin>=t0&&nowMin<=t1&&<span className="tl-now" style={{left:pos(nowMin)}} aria-hidden="true"/>}

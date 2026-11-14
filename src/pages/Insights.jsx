@@ -1,14 +1,14 @@
 import {useEffect,useState} from 'react';
 import {Link,useNavigate} from 'react-router-dom';
 import {db} from '../lib/db';
-import {useAuth} from '../lib/hooks';
+import {useAuth,useToast} from '../lib/hooks';
 import {formatWait} from '../lib/insights';
 import {nice} from '../lib/avail';
 import {REASON} from '../lib/reasons';
-import {Empty} from '../lib/ui';
+import {Empty,useConfirm} from '../lib/ui';
 
 const pct=x=>x==null?'–':Math.round(x*100)+'%';
-const RANGES=[[7,'7 days'],[30,'30 days'],[90,'90 days']];
+const RANGES=[[7,'7 days'],[30,'30 days'],[90,'90 days'],[180,'6 months'],[365,'1 year']];
 const SOURCE={staff:'Front desk',assistant:'Staff assistant',website:'Website chat'};
 const plural=(n,w)=>`${n} ${w}${n===1?'':'s'}`;
 
@@ -71,8 +71,22 @@ function useInsights(days){
 
 export default function Insights(){
   const [days,setDays]=useState(30),[m,err,retry]=useInsights(days),nav=useNavigate();
+  const {user}=useAuth(),toast=useToast(),confirm=useConfirm(),[busy,setBusy]=useState(false),manager=['owner','admin'].includes(user.role);
+  /* Logs in this period: the activity log, sent/failed message records and hand-off alerts. Appointments and chats are kept,
+     so the appointment figures do not change; the front-desk log counts do. */
+  const deleteLogs=async()=>{
+    if(!await confirm({title:`Delete logs from the last ${RANGES.find(r=>r[0]===days)[1]}?`,
+      body:'This removes the activity log, message records (sent or not sent) and hand-off alerts from this period, for good. Appointments and chats are kept.',
+      confirm:'Delete logs',cancel:'Keep',danger:true}))return;
+    setBusy(true);
+    try{const from=new Date(Date.now()-days*864e5).toISOString();
+      const n=(await Promise.all(['activity','messages','handoffs'].map(k=>db.deleteLogs(user.id,k,{from})))).reduce((a,b)=>a+b,0);
+      toast(n?`Deleted ${n} log entries`:'No logs in this period');retry()}
+    catch(e){toast(e.message)}finally{setBusy(false)}
+  };
   const head=<header><div><h1>Insights</h1>{m&&<p>{nice(String(m.from))} to {nice(String(m.to))}, clinic time. Counted from every appointment, chat and message in the period.</p>}</div>
-    <div className="seg" role="group" aria-label="Time range">{RANGES.map(([d,l])=><button key={d} type="button" className="btn sm" aria-pressed={d===days} onClick={()=>setDays(d)}>{l}</button>)}</div>
+    <span className="hdr-actions"><div className="seg" role="group" aria-label="Time range">{RANGES.map(([d,l])=><button key={d} type="button" className="btn sm" aria-pressed={d===days} onClick={()=>setDays(d)}>{l}</button>)}</div>
+      {manager&&<button type="button" className="btn ghost sm" disabled={busy} onClick={deleteLogs}>{busy?'Deleting…':'Delete logs'}</button>}</span>
   </header>;
   if(err)return<>{head}<div className="card"><Empty icon="alert" title="Insights could not load">{err}</Empty><p style={{textAlign:'center'}}><button className="btn sm" onClick={retry}>Try again</button></p></div></>;
   if(!m)return<>{head}<div className="tiles">{[0,1,2,3].map(i=><div key={i} className="card tile skel"/>)}</div><div className="card skel" style={{height:240}}/></>;

@@ -1,5 +1,5 @@
 import {respondWith} from './respond';
-import {DEFAULT_DOCTORS,DEFAULT_SERVICES,assignDoctor} from './schedule';
+import {DEFAULT_DOCTORS,DEFAULT_SERVICES,assignDoctor,withClinic} from './schedule';
 import {computeInsights} from './insights';
 /* ============ DATA LAYER — swap this object for Supabase later ============
    Every method is async and returns plain objects, so each maps 1:1 to a
@@ -25,7 +25,8 @@ export const local=(()=>{
    async list(t,uid){
     if(t==='doctors'&&!st().doctors.some(d=>d.owner===uid)){const s=st();s.doctors.push(...DEFAULT_DOCTORS.map(d=>({...d,id:id(),owner:uid})));S(s)}
     if(t==='services'&&!st().services.some(x=>x.owner===uid)){const s=st();s.services.push(...DEFAULT_SERVICES.map(n=>({id:id(),owner:uid,name:n})));S(s)}
-    return st()[t].filter(x=>x.owner===uid)},
+    const rows=st()[t].filter(x=>x.owner===uid);
+    return t==='doctors'?withClinic(rows,st().settings[uid]?.hours??null):rows},
    /* supabase.from(t).insert(row) */
    async add(t,uid,row){const s=st(),r={id:id(),owner:uid,created:Date.now(),...row};s[t].push(r);S(s);return r},
    /* supabase.from(t).update(patch).eq('id',id) */
@@ -52,7 +53,11 @@ export const local=(()=>{
    async widgetKeyRotate(){return crypto.randomUUID()},
    async widgetInstalls(){return []},
    async settings(uid){return st().settings[uid]||{}},
-   async saveHours(uid,h){const s=st();s.settings[uid]={...s.settings[uid],hours:h};s.doctors=s.doctors.map(d=>({...d,days:d.days.filter(x=>h.days.includes(x)),start:d.start<h.start?h.start:d.start,end:d.end>h.end?h.end:d.end}));S(s)},
+   async clinicHours(uid){return st().settings[uid]?.hours??{1:{start:'09:00',end:'17:00'},2:{start:'09:00',end:'17:00'},3:{start:'09:00',end:'17:00'},4:{start:'09:00',end:'17:00'},5:{start:'09:00',end:'17:00'}}},
+   async saveClinicHours(uid,h){const s=st();s.settings[uid]={...s.settings[uid],hours:h};S(s);return h},
+   async deleteLogs(uid,kind,{ids,from,to}={}){const s=st(),k={activity:'audit',messages:'outbox',handoffs:'alerts'}[kind],t=x=>x.at??x.created??0,before=s[k].length;
+     s[k]=s[k].filter(x=>!((!ids||ids.includes(x.id))&&(!from||t(x)>=Date.parse(from))&&(!to||t(x)<Date.parse(to))&&(kind!=='messages'||['sent','failed'].includes(x.status))));S(s);return before-s[k].length},
+   async removeInstall(){},
    async saveSettings(uid,v){const s=st();s.settings[uid]={...s.settings[uid],...v};S(s)}
   }})();
 

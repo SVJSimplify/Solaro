@@ -1,6 +1,6 @@
 import {createClient} from '@supabase/supabase-js';
 import {respondWith} from './respond';
-import {DEFAULT_DOCTORS,DEFAULT_SERVICES} from './schedule';
+import {DEFAULT_DOCTORS,DEFAULT_SERVICES,withClinic} from './schedule';
 const url=import.meta.env.VITE_SUPABASE_URL,key=import.meta.env.VITE_SUPABASE_ANON_KEY;
 const sb=url?createClient(url,key):null;
 const TABLE={convos:'conversations',kb:'kb',services:'services',doctors:'doctors',bookings:'bookings',closures:'closures',alerts:'alerts',audit:'audit',outbox:'outbox'};
@@ -11,6 +11,7 @@ const APP_TABLE={conversations:'convos',messages:'convos',audit_events:'audit',s
 const pending=new Set();let timer=null;
 const ping=(table)=>{
   pending.add(table?APP_TABLE[table]??table:'*');
+  if(table==='settings')pending.add('doctors');   // doctors carry the clinic hours
   if(timer)return;
   timer=setTimeout(()=>{const tables=[...pending];pending.clear();timer=null;
     for(const t of tables)dispatchEvent(new CustomEvent('solara',{detail:{table:t==='*'?null:t}}))},250);
@@ -31,7 +32,7 @@ const TO={
   outbox:r=>({channel:r.channel,to_addr:r.to||'',body:r.body||''}),   // always starts queued; only the server marks it sent
 };
 const FROM={
-  kb:r=>({id:r.id,title:r.title,body:r.body,keywords:r.keywords,starter:r.starter,created:ms(r.created_at)}),
+  kb:r=>({id:r.id,title:r.title,body:r.body,keywords:r.keywords,starter:r.starter,managed:!!r.managed,created:ms(r.created_at)}),
   services:r=>({id:r.id,name:r.name,created:ms(r.created_at)}),
   doctors:r=>({id:r.id,name:r.name,specialty:r.specialty,services:r.services,days:r.days,start:hm(r.start_time),end:hm(r.end_time),slot:r.slot,created:ms(r.created_at)}),
   bookings:r=>({id:r.id,name:r.name,phone:r.phone,service:r.service,when:r.starts_at.slice(0,16),doctor_id:r.doctor_id,doctor:r.doctor,status:r.status,reminded:r.reminded,duration:r.duration_min??30,source:r.source,conversation_id:r.conversation_id,requested_at:r.requested_at,decided_at:r.decided_at,created:ms(r.created_at)}),
@@ -40,7 +41,7 @@ const FROM={
   audit:r=>({id:r.id,action:r.action,detail:r.detail,at:ms(r.created_at)}),
   outbox:r=>({id:r.id,channel:r.channel,to:r.to_addr,body:r.body,status:r.status,kind:r.kind,booking_id:r.booking_id,error:r.last_error||'',attempts:r.attempts||0,sent:ms(r.sent_at),at:ms(r.created_at)}),
 };
-const LIMIT={convos:200,alerts:500,audit:1000,outbox:500};
+const LIMIT={convos:200,alerts:2000,audit:5000,outbox:2000};
 const COL={when:'starts_at',start:'start_time',end:'end_time',to:'to_addr'};
 const patchOf=p=>Object.fromEntries(Object.entries(p).filter(([k])=>k!=='id').map(([k,v])=>[COL[k]||k,v]));
 
@@ -48,6 +49,21 @@ const patchOf=p=>Object.fromEntries(Object.entries(p).filter(([k])=>k!=='id').ma
    Someone who belongs to several clinics chooses one; nothing is picked for them. The choice is remembered on this device. */
 const ORG_KEY='solara.org';
 const saved=()=>{try{return localStorage.getItem(ORG_KEY)}catch{return null}};
+/* One realtime channel for the clinic. Changes arrive as table pings. If the connection drops, anything missed while it was
+   down is caught up by reloading every screen once it is back, and again when the tab returns to the foreground. */
+let wasDown=false,lastWake=0;
+function live(tables){
+  let ch=sb.channel('rt-'+org);
+  for(const t of tables)ch=ch.on('postgres_changes',{event:'*',schema:'public',table:t,filter:'org_id=eq.'+org},()=>ping(t));
+  return ch.subscribe(st=>{
+    if(st==='SUBSCRIBED'){if(wasDown)ping();wasDown=false}
+    else if(st==='CHANNEL_ERROR'||st==='TIMED_OUT'||st==='CLOSED')wasDown=true;
+  });
+}
+if(typeof window!=='undefined'){
+  const wake=()=>{if(!org||document.visibilityState==='hidden'||Date.now()-lastWake<15000)return;lastWake=Date.now();ping()};
+  addEventListener('visibilitychange',wake);addEventListener('focus',wake);addEventListener('online',()=>{lastWake=0;wake()});
+}
 async function enter(user){
   const biz=user.user_metadata?.biz||'My business';
   let m=must(await sb.from('members').select('org_id, role, organizations(name,timezone)').eq('user_id',user.id).order('created_at'));
@@ -60,7 +76,7 @@ async function enter(user){
   org=me.org_id;
   await seed();
   const tables=['conversations','messages','bookings','kb','doctors','closures','alerts','services','audit_events','outbox','schedule_exceptions','settings'];
-  chans=tables.map(t=>sb.channel('rt-'+t).on('postgres_changes',{event:'*',schema:'public',table:t,filter:'org_id=eq.'+org},()=>ping(t)).subscribe());
+  chans=[live(tables)];
   const {data:pa}=await sb.rpc('is_platform_admin');
   return{...base,biz:me.organizations.name,org,tz:me.organizations.timezone||null,role:me.role,platformAdmin:!!pa};
 }
@@ -102,6 +118,11 @@ export const remote={
         .eq('status','confirmed').in('kind',['leave','unavailable','closure']).gte('on_date',new Date(Date.now()-2*864e5).toISOString().slice(0,10)).order('on_date').limit(1000));
       return d.map(e=>({id:e.id,date:String(e.on_date).slice(0,10),kind:e.kind,start:e.start_min,end:e.end_min,note:e.note||'',doctor_id:e.business_entities?.legacy_doctor_id??null,who:e.business_entities?.name||''}))
         .filter(e=>e.kind==='closure'||e.doctor_id);
+    }
+    if(t==='doctors'){
+      // Doctors carry the clinic's weekly hours, so every slot shown is inside both (the database enforces the same).
+      const [d,h]=await Promise.all([sb.from('doctors').select('*').eq('org_id',org).order('created_at'),sb.from('settings').select('hours').eq('org_id',org).maybeSingle()]);
+      return withClinic(must(d).map(FROM.doctors),must(h)?.hours??null);
     }
     let q=sb.from(TABLE[t]).select('*').eq('org_id',org);
     if(t==='bookings')q=q.gte('starts_at',new Date(Date.now()-180*864e5).toISOString().slice(0,10));
@@ -159,9 +180,14 @@ export const remote={
   async widgetKey(){return must(await sb.rpc('widget_key_get',{p_org:org}))},
   async widgetKeyRotate(){const k=must(await sb.rpc('widget_key_rotate',{p_org:org}));return k},
   async widgetInstalls(){const r=await sb.from('widget_installs').select('origin,first_seen,last_seen').eq('org_id',org).order('last_seen',{ascending:false});return r.error?null:r.data},
-  async settings(){const d=must(await sb.from('settings').select('*').eq('org_id',org).maybeSingle());return d?{greeting:d.greeting,tone:d.tone,handoff:d.handoff_phone,autoConfirm:!!d.auto_confirm_web,hours:{days:d.open_days??[1,2,3,4,5],start:d.open_start??'08:00',end:d.open_end??'17:00'}}:{}},
+  async settings(){const d=must(await sb.from('settings').select('*').eq('org_id',org).maybeSingle());return d?{greeting:d.greeting,tone:d.tone,handoff:d.handoff_phone,autoConfirm:!!d.auto_confirm_web}:{}},
   /* Clinic hours. The database keeps every doctor inside them and updates doctors when they change. */
-  async saveHours(_u,h){must(await sb.from('settings').upsert({org_id:org,open_days:h.days,open_start:h.start,open_end:h.end}));ping('doctors');ping('settings')},
+  /* Clinic hours by weekday: {"0".."6":{start,end}}; a missing day is closed. Edited in Knowledge; the database keeps the Hours answer in step. */
+  async clinicHours(){return must(await sb.from('settings').select('hours').eq('org_id',org).maybeSingle())?.hours??{}},
+  async saveClinicHours(_u,h){const r=must(await sb.rpc('set_clinic_hours',{p_org:org,p_hours:h}));ping('settings');ping('kb');ping('audit');return r},
+  /* Logs: kind activity|messages|handoffs; ids, or a period [from,to). Returns how many were removed. */
+  async deleteLogs(_u,kind,{ids,from,to}={}){const n=must(await sb.rpc('delete_logs',{p_org:org,p_kind:kind,p_ids:ids??null,p_from:from??null,p_to:to??null}));ping('audit');ping('outbox');ping('alerts');return n},
+  async removeInstall(_u,origin){must(await sb.from('widget_installs').delete().eq('org_id',org).eq('origin',origin))},
   async saveSettings(_u,v){must(await sb.from('settings').upsert({org_id:org,greeting:v.greeting,tone:v.tone,handoff_phone:v.handoff,...('autoConfirm' in v?{auto_confirm_web:!!v.autoConfirm}:{})}));ping()},
   /* Appointment actions. Each is one transaction on the server: the change, the audit record and the patient's message. */
   async bookingCreate(_u,r){const x=must(await sb.rpc('booking_create',{p_org:org,p_name:r.name,p_phone:r.phone,p_service:r.service||'',p_when:r.when,p_doctor:r.doctor_id}));ping('bookings');return x},

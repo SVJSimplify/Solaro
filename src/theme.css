@@ -365,3 +365,52 @@ aside .tab.on{text-shadow:none}
 .inst-wait{color:var(--mu)}
 .linkbtn{background:none;border:0;padding:0;color:var(--coral6);font:inherit;text-decoration:underline;cursor:pointer}
 @media (max-width:560px){.inst-row{grid-template-columns:1fr}}
+/* Clinic hours (Knowledge) */
+.hours-card{margin-bottom:18px;scroll-margin-top:80px}
+.hours-list{list-style:none;margin:6px 0 0;padding:0}
+.hours-list li{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--ln)}
+.hours-list li:first-child{border-top:0}
+.hours-list li.off .hours-day b{color:var(--mu);font-weight:600}
+.hours-day{display:flex;align-items:center;gap:10px;min-width:150px;cursor:pointer}
+.hours-day input{width:18px;height:18px;accent-color:var(--coral6)}
+.hours-range{display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--mu)}
+.hours-range select{width:auto;min-width:112px;padding:7px 10px}
+.hours-range .err{font-style:normal;font-size:.8rem}
+@media (max-width:560px){.hours-day{min-width:0;width:100%}.hours-range select{min-width:0;flex:1}}
+/* Patients */
+.pt-filters{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+.pt-f{display:inline-flex;align-items:center;gap:8px;border:1.5px solid var(--ln2);background:var(--sf);color:var(--tx);border-radius:999px;padding:6px 8px 6px 14px;font:600 .82rem var(--fd);cursor:pointer}
+.pt-f span{min-width:22px;text-align:center;border-radius:999px;background:var(--sf2);padding:1px 7px;font-size:.74rem;color:var(--mu)}
+.pt-f.on{background:var(--tx);border-color:var(--tx);color:var(--sf)}.pt-f.on span{background:rgba(255,255,255,.18);color:var(--sf)}
+.pt-f:disabled{opacity:.45;cursor:default}
+.pt-tools select{width:auto;min-width:140px;padding:8px 10px}
+.pt-list{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:10px}
+.pt-row{width:100%;display:grid;grid-template-columns:44px minmax(160px,1.3fr) minmax(170px,1.2fr) auto auto;gap:18px;align-items:center;text-align:left;
+  background:var(--sf);border:1px solid var(--ln);border-radius:var(--r-card);padding:14px 18px;cursor:pointer;color:var(--tx);font:inherit;transition:border-color .15s,box-shadow .15s,transform .15s}
+.pt-row:hover{border-color:var(--ln2);box-shadow:0 8px 24px -16px rgba(74,44,36,.4);transform:translateY(-1px)}
+.pt-row:focus-visible{outline:3px solid rgba(242,92,84,.35);outline-offset:2px}
+.pt-av{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:var(--amber1);color:var(--plum);font:700 .95rem var(--fd)}
+.pt-id{display:flex;flex-direction:column;min-width:0}.pt-id b{font:600 1rem var(--fd);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pt-id small{color:var(--mu);font-variant-numeric:tabular-nums}
+.pt-tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}.pt-tags i{font-style:normal;font-size:.72rem;background:var(--sf2);border:1px solid var(--ln);border-radius:6px;padding:1px 7px;color:var(--mu)}
+.pt-next{display:flex;flex-direction:column;gap:2px;min-width:0}.pt-next>small{color:var(--mu);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em}
+.pt-next b{font:600 .92rem var(--fd)}.pt-next b.mu{color:var(--mu);font-weight:500}
+.pt-next>span{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.pt-next em{font-style:normal;font-size:.8rem;color:var(--mu)}
+.pt-stats{display:flex;gap:16px}.pt-stats>span{display:flex;flex-direction:column;align-items:center;min-width:42px}
+.pt-stats b{font:700 1.05rem var(--fd);font-variant-numeric:tabular-nums}.pt-stats small{color:var(--mu);font-size:.72rem}
+.pt-stats .bad b{color:var(--bad)}
+.pt-when{display:flex;align-items:center;gap:8px;color:var(--mu);white-space:nowrap}.pt-when small{font-size:.76rem}
+@media (max-width:900px){.pt-row{grid-template-columns:44px 1fr auto;row-gap:10px}.pt-next{grid-column:2/4}.pt-stats{grid-column:2/4}.pt-when{grid-row:1;grid-column:3}}
+@media (max-width:520px){.pt-row{padding:12px 14px;gap:12px}.pt-when small{display:none}.pt-tools select{flex:1 1 140px}}
+/* Deletable log rows */
+.feed li{position:relative;padding-right:34px}
+.feed li.gone{opacity:.35;transition:opacity .2s}
+.row-del{position:absolute;right:0;top:8px;width:26px;height:26px;border-radius:50%;border:0;background:transparent;color:var(--mu);font-size:1.1rem;line-height:1;cursor:pointer;opacity:0;transition:opacity .15s,background .15s}
+.feed li:hover .row-del,.row-del:focus-visible{opacity:1}.row-del:hover{background:var(--bad1);color:var(--bad)}
+@media (hover:none){.row-del{opacity:.7}}
+.card-h h3 small{font-weight:500;margin-left:6px}
+/* Smooth chat: optimistic sends and word-by-word replies */
+.m.sending{opacity:.6}
+.caret{display:inline-block;width:2px;height:1em;margin-left:2px;vertical-align:-2px;background:currentColor;opacity:.5;animation:caret 1s steps(2) infinite}
+@keyframes caret{50%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.caret{animation:none}}

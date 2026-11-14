@@ -1,6 +1,7 @@
 /* Public website chat. Visitors never sign in. A chat is resumed from this browser, and staff replies appear here automatically. */
 import {useEffect,useRef,useState} from 'react';
 import '../widget.css';
+import {Reveal} from '../lib/Reveal';
 import {Field,PhoneField,problem,phoneProblem} from '../lib/fields';
 import TimeClock,{label12} from '../lib/TimeClock';
 import {isWhenField,serviceOf,whenLabel} from '../lib/whenField';
@@ -150,11 +151,33 @@ export default function Widget(){
   const [greeting,setGreeting]=useState('Hi! How can I help you today?'),[status,setStatus]=useState('handled'),[manage,setManage]=useState(false);
   const lastAt=useRef('1970-01-01T00:00:00Z'),logRef=useRef(null),key=`solara.widget.${org}`;
 
-  const addMsgs=list=>{if(!list.length)return;lastAt.current=list.at(-1).created_at;setMsgs(m=>[...m,...list])};
-  const poll=async(c=chat)=>{
-    if(!c)return;
-    try{const j=await call('/functions/v1/widget-chat',{action:'poll',conversation_id:c.conversation_id,token:c.token,since:lastAt.current});
-      addMsgs(j.messages);if(j.status)setStatus(j.status)}catch(e){if(e.status===401)setErr(e.message)}
+  // Stored messages are merged by identity, so overlapping polls can never show a message twice. An optimistic message
+  // (sent, not yet stored) is replaced by its stored copy when that arrives.
+  const loaded=useRef(false),inflight=useRef(null),fresh=useRef(new Set());
+  const addMsgs=list=>{
+    if(!list.length)return;
+    lastAt.current=list.at(-1).created_at;
+    setMsgs(m=>{
+      const ids=new Set(m.filter(x=>!x.pending).map(x=>x.created_at+x.role+x.body)),out=m.filter(x=>!x.pending);let pend=m.filter(x=>x.pending);
+      for(const x of list){
+        if(ids.has(x.created_at+x.role+x.body))continue;ids.add(x.created_at+x.role+x.body);
+        const i=pend.findIndex(p=>p.role===x.role&&p.body===x.body);if(i>=0)pend=pend.filter((_,j)=>j!==i);
+        if(loaded.current&&x.role!=='cust')fresh.current.add(x.created_at+x.body);
+        out.push(x);
+      }
+      return[...out,...pend];
+    });
+  };
+  // One poll at a time; a request made while one is running waits for it instead of racing it.
+  const poll=(c=chat)=>{
+    if(!c)return Promise.resolve();
+    if(inflight.current)return inflight.current.then(()=>poll(c));
+    inflight.current=(async()=>{
+      try{const j=await call('/functions/v1/widget-chat',{action:'poll',conversation_id:c.conversation_id,token:c.token,since:lastAt.current});
+        addMsgs(j.messages);if(j.status)setStatus(j.status)}catch(e){if(e.status===401)setErr(e.message)}
+      finally{inflight.current=null;loaded.current=true}
+    })();
+    return inflight.current;
   };
 
   // Start a new chat, or resume the one saved in this browser.
@@ -188,6 +211,9 @@ export default function Widget(){
   const send=async content=>{
     if(!chat||busy)return;
     setBusy(true);setErr('');
+    // Show the message the moment it is sent; the stored copy replaces it when it arrives.
+    const mine={role:'cust',body:content,pending:true,created_at:new Date().toISOString()};
+    setMsgs(m=>[...m,mine]);
     try{
       const j=await call('/functions/v1/widget-chat',{conversation_id:chat.conversation_id,token:chat.token,text:content});
       if(j.form){setForm(j.form);setValues({})}else setForm(null);
@@ -195,7 +221,7 @@ export default function Widget(){
       if(j.status)setStatus(j.status);
       await poll(chat);
     }catch(e){
-      setErr(e.message);
+      setErr(e.message);setMsgs(m=>m.filter(x=>x!==mine));
       if(e.status===401){localStorage.removeItem(key)}
     }finally{setBusy(false)}
   };
@@ -227,8 +253,9 @@ export default function Widget(){
       <div className="wg-log" ref={logRef} role="log" aria-live="polite" aria-label="Conversation">
         <div className="wg-msg bot"><span className="sr">Assistant: </span>{greeting}</div>
         {msgs.map((m,i)=>(
-          <div key={i} className={'wg-msg '+(m.role==='cust'?'me':m.role)}>
-            {m.role==='staff'?<small className="wg-who">{name} team</small>:<span className="sr">{m.role==='cust'?'You: ':'Assistant: '}</span>}{m.body}
+          <div key={m.pending?'p'+m.created_at:m.created_at+m.role+i} className={'wg-msg '+(m.role==='cust'?'me':m.role)+(m.pending?' sending':'')}>
+            {m.role==='staff'?<small className="wg-who">{name} team</small>:<span className="sr">{m.role==='cust'?'You: ':'Assistant: '}</span>}
+            {m.role==='cust'?m.body:<Reveal text={m.body} animate={fresh.current.has(m.created_at+m.body)&&!matchMedia('(prefers-reduced-motion: reduce)').matches}/>}
           </div>))}
         {busy&&<div className="wg-typing" aria-label="Assistant is typing"><i/><i/><i/></div>}
         {manage&&chat&&<ManagePanel chat={chat} onClose={()=>setManage(false)} onChanged={()=>poll(chat)}/>}

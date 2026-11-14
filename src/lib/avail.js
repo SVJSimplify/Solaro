@@ -1,6 +1,6 @@
 /* Slot states for the dashboard, in the clinic's own time. Display only: the database re-checks every booking
    (validate_booking) with the same rules, so a stale screen can never place an appointment. */
-import {slotsFor,dateOf} from './schedule';
+import {slotsFor,dateOf} from './schedule.js';
 const pad=n=>String(n).padStart(2,'0');
 const MIN=w=>{const [h,m]=w.slice(11).split(':').map(Number);return h*60+m};
 
