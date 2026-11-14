@@ -71,3 +71,51 @@
 @media (max-width:519px){.wg--embed .wg-head{padding-right:68px}}
 .wg-slots.wg-clock{display:block}
 .wg-clock .tc{margin-top:4px}
+
+/* ===== Solara signature look: espresso panel, white Solara bubbles, coral patient bubbles =====
+   Matches the Solara chat shown on solario's website. Redefines the shared tokens inside .wg so the booking
+   form, clock and fields inherit the same dark palette. Overrides the light palette above. */
+.wg{
+  --w-bg:#211A18;--w-sf:#29201D;--w-sf2:#2F2522;--w-ln:rgba(244,238,229,.10);--w-ln2:rgba(244,238,229,.22);
+  --w-tx:#F4EEE5;--w-mu:#B4A79D;--w-coral:#D96F54;--w-coral6:#C9583F;--w-amber:#F2A278;--w-amber1:#3A2A22;
+  --bg:#211A18;--sf:#29201D;--sf2:#2F2522;--tx:#F4EEE5;--mu:#B4A79D;--ln:rgba(244,238,229,.10);--ln2:rgba(244,238,229,.22);
+  --coral:#D96F54;--coral6:#C9583F;--amber:#F2A278;--amber1:#3A2A22;
+  color-scheme:dark;background:var(--w-bg);color:var(--w-tx)
+}
+@media (min-width:600px){.wg{border-inline-color:var(--w-ln)}}
+.wg-head{background:var(--w-bg);border-bottom-color:var(--w-ln)}
+.wg-avatar{background:#D96F54;color:#1A1210;box-shadow:0 0 0 3px rgba(217,111,84,.18)}
+.wg-id h1{color:var(--w-tx);font-family:'Cormorant Garamond',Georgia,serif;font-weight:600;font-size:1.2rem;letter-spacing:.01em}
+.wg-dot{background:#7BC79A;box-shadow:0 0 0 3px rgba(123,199,154,.15)}
+.wg-link{color:#F2A278;text-decoration-color:rgba(242,162,120,.45)}
+.wg-log{background:var(--w-bg)}
+.wg-msg.bot{background:#FBF8F4;color:#2A201C;box-shadow:none}
+.wg-msg.me{background:#D96F54;color:#1A1210}
+.wg-msg.staff{background:#3A2A22;color:var(--w-tx);box-shadow:inset 0 0 0 1px rgba(242,162,120,.35)}
+.wg-who{color:#F2A278}
+.wg-typing{background:#FBF8F4;box-shadow:none}.wg-typing i{background:#8A7A70}
+.wg-note{color:var(--w-mu)}
+.wg-form{background:var(--w-sf);box-shadow:0 0 0 1px var(--w-ln)}
+.wg-form h2{color:var(--w-tx)}
+.wg .f input,.wg .f select,.wg .f textarea{background:var(--w-sf2);color:var(--w-tx);border-color:var(--w-ln2)}
+.wg .f input::placeholder,.wg .f textarea::placeholder{color:#8A7A70}
+.wg-slot{background:var(--w-sf2);color:var(--w-tx);border-color:var(--w-ln2)}
+.wg-slot.on{background:#D96F54;border-color:#D96F54;color:#1A1210}
+.wg .btn{background:#D96F54;border-color:#D96F54;color:#1A1210}
+.wg .btn.ghost{background:transparent;color:var(--w-tx);border-color:var(--w-ln2)}
+.wg .btn:disabled,.wg-send:disabled{background:#3A302C;border-color:#3A302C;color:#8A7A70}
+.wg-input{background:var(--w-bg);border-top-color:var(--w-ln)}
+.wg-input input{background:var(--w-sf);color:var(--w-tx);border-color:var(--w-ln2)}
+.wg-input input::placeholder{color:#8A7A70}
+.wg-input input:focus{border-color:#D96F54}
+.wg-send{background:#D96F54;color:#1A1210}.wg-send:hover:not(:disabled){background:#E5836A}
+.wg-err{background:var(--w-bg);color:#F2A278}
+.wg-foot{background:var(--w-bg);color:#7D6F66}
+.wg .tc-face{fill:var(--w-sf2);stroke:var(--w-ln2)}
+.wg .tc-num{fill:var(--w-mu)}
+.wg .tc-read{color:var(--w-tx)}
+.wg .tc-step{background:var(--w-sf2);color:var(--w-tx);border-color:var(--w-ln2)}
+.wg .tc-half{background:var(--w-sf2);border-color:var(--w-ln)}
+.wg .tc-half button[aria-pressed=true]{background:#D96F54;color:#1A1210}
+.wg .tc-slot{fill:#D96F54}.wg .tc-slot.on{fill:#F2A278}.wg .tc-hand,.wg .tc-pin{stroke:#F2A278;fill:#F2A278}
+.wg .tc-slot.shut{fill:none;stroke:#8A7A70}
