@@ -6,7 +6,7 @@ import {DAYS,slotsFor,dateOf} from '../lib/schedule';
 import {clinicNow,addDays,nice,clock,STATUS,held,open,awayAt,closedOn,openSlots,conflictOf} from '../lib/avail';
 import DateButton from '../lib/DateButton';
 import {audit} from '../lib/audit';
-import {normalizePhone} from '../lib/phone';
+import {Field,PhoneField,problem,phoneProblem} from '../lib/fields';
 import {Icon,Drawer,Empty,useConfirm} from '../lib/ui';
 
 const tel=p=>'tel:'+String(p||'').replace(/[^\d+]/g,'');
@@ -53,7 +53,7 @@ export default function Bookings(){
   const go=patch=>setSp(p=>{const n=new URLSearchParams(p);for(const [k,v] of Object.entries(patch))v==null||v===''?n.delete(k):n.set(k,v);return n},{replace:true});
   const [busy,setBusy]=useState(false),[allReq,setAllReq]=useState(false),[allCon,setAllCon]=useState(false),[move,setMove]=useState(null),[cd,setCd]=useState(''),[desc,setDesc]=useState(false);
   const [flt,setFlt]=useState(()=>({q:sp.get('q')||'',status:sp.get('status')||'open',doctor:sp.get('doctor')||'',range:sp.get('range')||'upcoming',service:sp.get('service')||''}));
-  const [f,setF]=useState(blank),[fd,setFd]=useState(date),[adding,setAdding]=useState(sp.get('new')==='1');
+  const [f,setF]=useState(blank),[fd,setFd]=useState(date),[adding,setAdding]=useState(sp.get('new')==='1'),[tried,setTried]=useState(false);
   // A link may name the doctor (Insights does); turn it into the filter once doctors have loaded.
   useEffect(()=>{const n=sp.get('dn');if(n&&docs.length){const d=docs.find(x=>x.name===n);if(d)setFlt(x=>({...x,doctor:d.id}));go({dn:null})}},[docs]);
   const pick=rows.find(b=>b.id===pickId)||null;
@@ -81,10 +81,11 @@ export default function Bookings(){
   const service=f.service||svc[0]?.name||'';
   const book=e=>{
     e.preventDefault();
-    const phone=normalizePhone(f.phone);
-    if(!phone)return toast('Enter a valid US or Indian phone number');
-    if(!f.when)return toast('Pick one of the open times');
-    run(()=>db.bookingCreate(user.id,{name:f.name.trim(),phone,service,when:f.when,doctor_id:f.doctor_id}),r=>{setF(blank);setAdding(false);go({new:null});toast(`Booked with ${r.doctor}. A text confirmation is queued.`)});
+    setTried(true);
+    const wrong=(!f.when&&'Pick one of the open times.')||problem('person',f.name,{label:'Patient name'})||phoneProblem(f.phone);
+    if(wrong)return toast(wrong);
+    const phone=f.phone;
+    run(()=>db.bookingCreate(user.id,{name:f.name.trim(),phone,service,when:f.when,doctor_id:f.doctor_id}),r=>{setF(blank);setTried(false);setAdding(false);go({new:null});toast(`Booked with ${r.doctor}. A text confirmation is queued.`)});
   };
   const openNew=(d,when,doc)=>{setFd(d||date);setF({...f,when:when||'',doctor_id:doc?.id||'',service:doc?(doc.services.includes(service)?service:doc.services[0]||''):f.service});setAdding(true)};
   const openAppt=(b,moving)=>{go({id:b.id});setMove(moving?{date:b.when<now?today:dateOf(b.when),doctor_id:''}:null)};
@@ -256,8 +257,8 @@ export default function Bookings(){
         <div className="f"><label htmlFor="bs">Service</label><select id="bs" value={service} onChange={e=>setF({...f,service:e.target.value,when:'',doctor_id:''})}>{svc.map(s=><option key={s.id}>{s.name}</option>)}</select></div>
         <div className="f"><span className="flabel">Open times</span>
           <SlotPicker docs={docs} rows={rows} leave={leave} closed={closed} now={now} service={service} sel={f.when?f:null} date={fd} setDate={v=>{setFd(v);setF({...f,when:'',doctor_id:''})}} onPick={s=>setF({...f,when:s.when,doctor_id:s.doctor.id})} busy={busy}/></div>
-        <div className="f"><label htmlFor="bn">Patient name</label><input id="bn" required autoComplete="off" value={f.name} onChange={e=>setF({...f,name:e.target.value})}/></div>
-        <div className="f"><label htmlFor="bp">Phone</label><input id="bp" type="tel" required autoComplete="off" value={f.phone} onChange={e=>setF({...f,phone:e.target.value})}/></div>
+        <Field id="bn" label="Patient name" kind="person" value={f.name} onChange={v=>setF({...f,name:v})} autoComplete="off" show={tried}/>
+        <PhoneField id="bp" label="Phone" value={f.phone} onChange={v=>setF({...f,phone:v})} tz={user.tz} show={tried} hint="Used for the confirmation and reminder texts."/>
         <p className="route">{f.when?`${nice(f.when)} with ${docs.find(d=>d.id===f.doctor_id)?.name||'a doctor'}. The patient gets a text confirmation.`:'Pick one of the open times above.'}</p>
         <button className={'btn'+(busy?' busy':'')} disabled={busy||!f.when} style={{width:'100%'}}>Add booking</button>
       </form>

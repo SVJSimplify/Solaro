@@ -1,4 +1,5 @@
 import {useState,useMemo} from 'react';
+import {Field,problem} from '../lib/fields';
 import {db} from '../lib/db';import {useAuth,useTable,useToast} from '../lib/hooks';import {wait,RM,ImportPreview} from '../lib/ui';
 import {parseSetup,EXAMPLE,diffImport} from '../lib/importer';
 import {readSetupFile} from '../lib/readFile';
@@ -9,7 +10,7 @@ const blank={title:'',body:'',keywords:''};
 export default function Knowledge(){
   const {user}=useAuth(),toast=useToast(),[kb]=useTable('kb'),[docs]=useTable('doctors'),[f,setF]=useState(blank),[rm,setRm]=useState(null);
   const [text,setText]=useState(''),[last,setLast]=useState(null),plan=useMemo(()=>parseSetup(text),[text]);
-  const [fmt,setFmt]=useState(false),[preview,setPreview]=useState(null);
+  const [fmt,setFmt]=useState(false),[preview,setPreview]=useState(null),[tried,setTried]=useState(false);
   const canManage=['owner','admin'].includes(user.role);
   /* Import is previewed first. Existing doctors and answers are kept unless the user ticks "replace"; nothing is deleted.
      The write is one server transaction, so a failed import changes nothing. */
@@ -24,7 +25,10 @@ export default function Knowledge(){
   const runImport=()=>importPlan(plan);
   const readFile=async e=>{const file=e.target.files?.[0];e.target.value='';if(!file)return;try{setText(await readSetupFile(file))}catch(err){toast('Could not read that file: '+err.message)}};
   const set=k=>e=>setF({...f,[k]:e.target.value});
-  const add=async e=>{e.preventDefault();await db.add('kb',user.id,{title:f.title.trim(),body:f.body.trim(),keywords:f.keywords.trim()});setF(blank);toast('Saved')};
+  const add=async e=>{e.preventDefault();setTried(true);
+    const wrong=problem('line',f.title,{label:'Topic',min:2})||problem('text',f.body,{label:'Answer'})||problem('words',f.keywords,{label:'Trigger words'});
+    if(wrong)return toast(wrong);setTried(false);
+    await db.add('kb',user.id,{title:f.title.trim(),body:f.body.trim(),keywords:f.keywords.trim()});setF(blank);toast('Saved')};
   const del=async id=>{setRm(id);await wait(RM?0:300);await db.del('kb',id);setRm(null)};
   return(<>
     <header><h1>Knowledge</h1></header>
@@ -33,7 +37,7 @@ export default function Knowledge(){
     {canManage&&<section className="card st quick">
       <h3>Quick setup</h3>
       <p className="route">Paste your schedule, or upload a file: .txt, .csv, Excel (.xlsx), Google Sheets (File → Download → .xlsx or .csv), or PDF. Lines with problems are listed, not skipped silently.</p>
-      <textarea rows="7" value={text} onChange={e=>setText(e.target.value)} placeholder={EXAMPLE} aria-label="Quick setup text"/>
+      <textarea rows="7" value={text} maxLength={20000} onChange={e=>setText(e.target.value)} placeholder={EXAMPLE} aria-label="Quick setup text"/>
       <div className="acts">
         <input type="file" accept=".txt,.csv,.tsv,.xlsx,.xls,.pdf" onChange={readFile} aria-label="Upload schedule file"/>
         <button className="btn ghost sm" type="button" onClick={()=>setText(EXAMPLE)}>Use example</button>
@@ -57,9 +61,9 @@ export default function Knowledge(){
         {!kb.length&&<div className="empty">Add your first answer.</div>}
       </div>
       {canManage&&<form className="card st" style={{'--i':1}} onSubmit={add}><h3 style={{marginBottom:12}}>Add an answer</h3>
-        <div className="f"><label htmlFor="kt">Topic</label><input id="kt" required value={f.title} onChange={set('title')}/></div>
-        <div className="f"><label htmlFor="kb">Answer</label><textarea id="kb" rows="4" required value={f.body} onChange={set('body')}/></div>
-        <div className="f"><label htmlFor="kk">Trigger words (space separated)</label><input id="kk" required placeholder="parking directions address" value={f.keywords} onChange={set('keywords')}/></div>
+        <Field id="kt" label="Topic" kind="line" value={f.title} onChange={v=>setF({...f,title:v})} placeholder="Parking" show={tried}/>
+        <Field id="kb" label="Answer" kind="text" rows={4} value={f.body} onChange={v=>setF({...f,body:v})} count show={tried} hint="Solara replies with this, word for word."/>
+        <Field id="kk" label="Trigger words" kind="words" value={f.keywords} onChange={v=>setF({...f,keywords:v})} placeholder="parking directions address" show={tried} hint="Lower-case words separated by spaces."/>
         <button className="btn">Save answer</button>
       </form>}
     </div>

@@ -1,6 +1,6 @@
 /* Colour fix: always the original cream + coral look (light), regardless of the OS dark setting.
    Plum is used only for text and small accents, as in the original design. */
-:root{--bg:#FFFBF2 !important;--sf:#FFFFFF !important;--tx:#3B1F2B !important;--mu:#5E4150 !important;--ln:#EADFCB !important;--wm:#FFF6E5 !important;--coral:#F25C54 !important;--coral6:#C9413A !important;--amber:#F7B32B !important;--amber1:#FEF0CC !important;color-scheme:light !important}
+:root{--bg:#FFFBF2 !important;--sf:#FFFFFF !important;--tx:#4A2C24 !important;--mu:#7A5A4E !important;--ln:#EADFCB !important;--wm:#FFF6E5 !important;--coral:#F25C54 !important;--coral6:#C9413A !important;--amber:#F7B32B !important;--amber1:#FEF0CC !important;color-scheme:light !important}
 html body{background:var(--bg);color:var(--tx)}
 /* Assistant forms and urgency flags. */
 .fc{align-self:flex-start;max-width:80%;display:grid;gap:10px;background:var(--sf);border:1.5px solid var(--ln);border-radius:14px;padding:14px;animation:up .4s var(--ez) both}

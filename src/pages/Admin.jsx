@@ -28,9 +28,9 @@ function ClinicRow({c,plans,reload}){
         <div className="f"><label htmlFor={'p'+c.id}>Plan</label>
           <select id={'p'+c.id} value={plan} onChange={e=>setPlan(e.target.value)}>{plans.map(p=><option key={p.name} value={p.name}>{p.label} ({p.daily_ai_limit}/day)</option>)}</select></div>
         <div className="f"><label htmlFor={'o'+c.id}>Daily limit override</label>
-          <input id={'o'+c.id} inputMode="numeric" value={override} placeholder="Plan default" onChange={e=>setOverride(e.target.value)}/></div>
+          <input id={'o'+c.id} inputMode="numeric" value={override} maxLength={6} placeholder="Plan default" onChange={e=>setOverride(e.target.value.replace(/\D/g,''))}/></div>
         <div className="f"><label htmlFor={'m'+c.id}>Model name</label>
-          <input id={'m'+c.id} value={model} placeholder="Server default" onChange={e=>setModel(e.target.value)}/></div>
+          <input id={'m'+c.id} value={model} maxLength={60} spellCheck={false} placeholder="Server default" onChange={e=>setModel(e.target.value.replace(/[^A-Za-z0-9._:/-]/g,''))}/></div>
         <div className="f"><label htmlFor={'w'+c.id}>Website chat</label>
           <select id={'w'+c.id} value={widget?'on':'off'} onChange={e=>setWidget(e.target.value==='on')}><option value="on">On</option><option value="off">Off</option></select></div>
       </div>

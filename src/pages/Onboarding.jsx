@@ -4,8 +4,8 @@ import {db} from '../lib/db';import {useAuth,useToast} from '../lib/hooks';impor
 import SolaraFormat from '../lib/SolaraFormat';
 import {addStarterAnswers} from '../lib/starterAnswers';
 import SetupChat from '../lib/SetupChat';
+import {Field,PhoneField,problem,phoneProblem} from '../lib/fields';
 
-const PHONE=/^\+?[0-9 ()-]{7,20}$/;
 const STEPS=['Front desk','Answers','Go live'];
 const msg=x=>x?.message||'Something went wrong. Please try again.';
 
@@ -32,8 +32,8 @@ export default function Onboarding(){
 
   const saveFront=()=>run(async()=>{
     const g=s.greeting.trim(),h=s.handoff.trim();
-    if(!g||g.length>160)return setErr('Greeting is required (160 characters max).');
-    if(!PHONE.test(h))return setErr('Enter a valid hand-off phone number.');
+    const wrong=problem('line',g,{label:'Greeting'})||phoneProblem(h,{label:'Hand-off number'});
+    if(wrong)return setErr(wrong);
     await db.saveSettings(user.id,{greeting:g,tone:s.tone,handoff:h});
     setStep(1);
   });
@@ -68,9 +68,9 @@ export default function Onboarding(){
 
       {step===0&&<form onSubmit={e=>{e.preventDefault();saveFront()}} noValidate>
         <h2>How should your front desk sound?</h2>
-        <div className="f"><label htmlFor="g">Greeting</label><input id="g" value={s.greeting} onChange={set('greeting')} maxLength={160}/></div>
+        <Field id="g" label="Greeting" kind="line" value={s.greeting} onChange={v=>setS(o=>({...o,greeting:v}))} count hint="The first thing patients read in the chat."/>
         <div className="f"><label htmlFor="tn">Tone</label><select id="tn" value={s.tone} onChange={set('tone')}>{['friendly','formal','casual'].map(o=><option key={o}>{o}</option>)}</select></div>
-        <div className="f"><label htmlFor="h">Hand-off phone number</label><input id="h" type="tel" autoComplete="tel" placeholder="+1 555 000 0000" value={s.handoff} onChange={set('handoff')}/></div>
+        <PhoneField id="h" label="Hand-off phone number" value={s.handoff} onChange={v=>setS(o=>({...o,handoff:v}))} tz={user.tz} autoComplete="tel" hint="Patients are given this number when a chat needs a person."/>
         <p className="err" role="alert">{err}</p>
         <button className={'btn'+(busy?' busy':'')} disabled={busy} style={{width:'100%'}}>Next</button>
       </form>}

@@ -1,6 +1,7 @@
 /* Public website chat. Visitors never sign in. A chat is resumed from this browser, and staff replies appear here automatically. */
 import {useEffect,useRef,useState} from 'react';
 import '../widget.css';
+import {Field,PhoneField,problem,phoneProblem} from '../lib/fields';
 
 const URL=import.meta.env.VITE_SUPABASE_URL,ANON=import.meta.env.VITE_SUPABASE_ANON_KEY;
 const headers={apikey:ANON,Authorization:'Bearer '+ANON,'Content-Type':'application/json'};
@@ -31,7 +32,8 @@ function BookingPicker({form,chat,onDone,onCancel}){
   },[v.date,v.service,chat,tick]);
   const submit=async e=>{
     e.preventDefault();setErr('');
-    if(!v.name.trim()||!v.phone.trim())return setErr('Please add your name and phone number.');
+    const wrong=problem('person',v.name,{label:'Your name'})||phoneProblem(v.phone);
+    if(wrong)return setErr(wrong);
     if(!v.time)return setErr('Please choose a time.');
     setBusy(true);
     try{
@@ -44,8 +46,8 @@ function BookingPicker({form,chat,onDone,onCancel}){
   return(
     <form className="wg-form" onSubmit={submit} aria-label={form.title}>
       <h2>{form.title}</h2>
-      <div className="f"><label htmlFor="bk-name">Full name *</label><input id="bk-name" autoComplete="name" value={v.name} onChange={set('name')} required/></div>
-      <div className="f"><label htmlFor="bk-phone">{form.fields.find(f=>f.name==='phone')?.label||'Phone'} *</label><input id="bk-phone" type="tel" autoComplete="tel" value={v.phone} onChange={set('phone')} required/></div>
+      <Field id="bk-name" label="Full name" kind="person" value={v.name} onChange={x=>setV(o=>({...o,name:x}))} autoComplete="name"/>
+      <PhoneField id="bk-phone" label={form.fields.find(f=>f.name==='phone')?.label||'Phone'} value={v.phone} onChange={x=>setV(o=>({...o,phone:x}))} autoComplete="tel"/>
       {services.length>0&&<div className="f"><label htmlFor="bk-svc">Service *</label><select id="bk-svc" value={v.service} onChange={set('service')}>{services.map(o=><option key={o}>{o}</option>)}</select></div>}
       <div className="f"><label htmlFor="bk-date">Day *</label><input id="bk-date" type="date" min={localToday()} value={v.date} onChange={set('date')} required/></div>
       <fieldset className="wg-slots"><legend>Open times</legend>
@@ -80,8 +82,8 @@ function ManagePanel({chat,onClose,onChanged}){
     <section className="wg-form" aria-label="Manage my appointment">
       <h2>Manage my appointment</h2>
       {step==='phone'&&<form onSubmit={e=>{e.preventDefault();run(async()=>{const j=await api('verify_start',{phone});setInfo(j.message);setStep('code')})}}>
-        <div className="f"><label htmlFor="mg-phone">Phone number on your appointment</label><input id="mg-phone" type="tel" autoComplete="tel" value={phone} onChange={e=>setPhone(e.target.value)} required/></div>
-        <div className="acts"><button className="btn" disabled={busy||!phone.trim()}>{busy?'Sending…':'Text me a code'}</button></div>
+        <PhoneField id="mg-phone" label="Phone number on your appointment" value={phone} onChange={setPhone} autoComplete="tel"/>
+        <div className="acts"><button className="btn" disabled={busy||!!phoneProblem(phone)}>{busy?'Sending…':'Text me a code'}</button></div>
       </form>}
       {step==='code'&&<form onSubmit={e=>{e.preventDefault();run(async()=>{await api('verify_check',{code});const j=await api('my_bookings');setList(j.appointments||[]);setStep('list')})}}>
         <p className="wg-note">{info}</p>

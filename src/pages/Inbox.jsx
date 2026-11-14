@@ -85,7 +85,7 @@ export default function Inbox(){
           </div>
           <form className="send" onSubmit={send}>
             {isTest(c)&&<div className="seg" role="group" aria-label="Send as">{[['team','As the team'],['patient','As the patient']].map(([k,l])=><button key={k} type="button" className="btn sm" aria-pressed={k===as} onClick={()=>setAs(k)}>{l}</button>)}</div>}
-            <input value={reply} onChange={e=>setReply(e.target.value)} placeholder={as==='patient'&&isTest(c)?'Type what a patient would ask…':`Reply to ${c.customer}…`} aria-label="Message"/><button className="btn" disabled={!reply.trim()}>Send</button>
+            <input value={reply} maxLength={1000} onChange={e=>setReply(e.target.value)} placeholder={as==='patient'&&isTest(c)?'Type what a patient would ask…':`Reply to ${c.customer}…`} aria-label="Message"/><button className="btn" disabled={!reply.trim()}>Send</button>
           </form>
         </>:<Empty icon="chat" title="No conversation selected">Pick a chat on the left to read it and reply.</Empty>}
       </div>

@@ -3,6 +3,7 @@ import {formSubmission} from '../../supabase/functions/_shared/agent.js';
 import DateTimePicker from './DateTimePicker';
 import {normalizePhone,isValidPhone} from './phone';
 import '../forms.css';
+import {PhoneField,phoneProblem} from './fields';
 
 /* Input rules derived from what the field is, so Solara's forms reject bad characters and overlong values. */
 const hint=f=>(f.name+' '+f.label).toLowerCase();
@@ -26,7 +27,7 @@ export default function FormCard({form,done,onSubmit}){
   const submit=e=>{
     e.preventDefault();
     if(done)return;
-    const badPhone=form.fields.find(f=>rulesFor(f).phone&&!isValidPhone(v[f.name]));
+    const badPhone=form.fields.find(f=>rulesFor(f).phone&&(phoneProblem(v[f.name])||!isValidPhone(v[f.name])));
     setBad(badPhone?badPhone.name:'');
     if(badPhone)return;
     const out={...v};
@@ -43,6 +44,7 @@ export default function FormCard({form,done,onSubmit}){
         if(f.type==='date'||f.type==='datetime-local')return(
           <div key={f.name} className="fc-pick"><span className="flabel">{f.label}{f.required&&' *'}</span>
             <DateTimePicker mode={f.type==='date'?'date':'datetime'} value={v[f.name]??''} onChange={val=>set(f.name,val)} label={f.label}/></div>);
+        if(R.phone)return<PhoneField key={f.name} id={id} label={f.label} value={v[f.name]??''} onChange={val=>set(f.name,val)} disabled={done} show={bad===f.name} autoComplete="tel"/>;
         return(
           <label key={f.name} htmlFor={id}>{f.label}{(f.required||R.phone)&&' *'}
             {f.type==='select'

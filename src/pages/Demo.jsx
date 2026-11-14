@@ -109,7 +109,7 @@ function DemoView({uid}){
               {busy&&<div className="chat-msg bot typing">Solara is typing…</div>}
             </div>
             <form className="chat-input" onSubmit={e=>{e.preventDefault();send()}}>
-              <input value={text} onChange={e=>setText(e.target.value)} placeholder="Type your message…" aria-label="Your message" disabled={busy}/>
+              <input value={text} maxLength={1000} onChange={e=>setText(e.target.value)} placeholder="Type your message…" aria-label="Your message" disabled={busy}/>
               <button className="btn sm" disabled={busy||!text.trim()}>Send</button>
             </form>
           </div>}
