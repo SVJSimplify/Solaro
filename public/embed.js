@@ -20,18 +20,19 @@
   function paint(){
     btn.innerHTML=open?CLOSE+'<span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Close chat</span>':CHAT+'<span>'+label.replace(/[<>&]/g,'')+'</span>';
     btn.style.padding=open?'0':'0 20px 0 16px';btn.style.width=open?'56px':'auto';
+    btn.style.background=open?'#211A18':color;btn.style.color=open?'#F4EEE5':ink;btn.style.outline=open?'1px solid rgba(244,238,229,.14)':'none';btn.style.outlineOffset='-1px';
   }
   btn.style.cssText='position:fixed;bottom:20px;'+side+':20px;z-index:2147483647;height:56px;border:0;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;gap:8px;'+
-    'font:600 15px/1 system-ui,-apple-system,"Segoe UI",sans-serif;color:'+ink+';background:'+color+';box-shadow:0 10px 28px -8px rgba(60,20,15,.45),0 2px 6px rgba(60,20,15,.18);cursor:pointer;'+
+    'font:600 15px/1 "DM Sans",Manrope,system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:.005em;color:'+ink+';background:'+color+';box-shadow:0 10px 28px -8px rgba(60,20,15,.45),0 2px 6px rgba(60,20,15,.18);cursor:pointer;'+
     'transition:'+(reduce?'none':'transform .2s ease,box-shadow .2s ease');
   btn.onmouseenter=function(){if(!reduce)btn.style.transform='translateY(-2px)'};
   btn.onmouseleave=function(){btn.style.transform='none'};
   paint();
   function size(){if(!frame)return;var small=window.innerWidth<520;
-    frame.style.cssText='position:fixed;z-index:2147483646;border:0;background:#211A18;color-scheme:dark;box-shadow:0 24px 60px -12px rgba(60,20,15,.35),0 0 0 1px rgba(60,20,15,.06);'+
-      'transition:'+(reduce?'none':'opacity .22s ease,transform .26s cubic-bezier(.22,1,.36,1)')+';transform-origin:bottom '+side+';'+
-      (small?'inset:0;width:100%;height:100%;border-radius:0':'bottom:88px;'+side+':20px;width:384px;height:620px;max-height:calc(100vh - 108px);border-radius:20px')+
-      (open?';opacity:1;transform:none':';opacity:0;transform:translateY(12px) scale(.98);pointer-events:none;visibility:hidden')}
+    frame.style.cssText='position:fixed;z-index:2147483646;border:0;background:#211A18;color-scheme:dark;box-shadow:0 32px 80px -20px rgba(20,10,8,.55),0 12px 28px -12px rgba(20,10,8,.35),0 0 0 1px rgba(244,238,229,.07);'+
+      'transition:'+(reduce?'none':'opacity .24s ease,transform .32s cubic-bezier(.22,1,.36,1)')+';transform-origin:bottom '+side+';'+
+      (small?'inset:0;width:100%;height:100%;border-radius:0':'bottom:88px;'+side+':20px;width:392px;height:640px;max-height:calc(100vh - 108px);border-radius:22px')+
+      (open?';opacity:1;transform:none':';opacity:0;transform:translateY(16px) scale(.96);pointer-events:none;visibility:hidden')}
   btn.onclick=function(){
     if(!frame){frame=document.createElement('iframe');frame.id='solara-chat-frame';frame.title='Chat with the clinic';
       frame.src=base+'/widget?key='+encodeURIComponent(key);frame.setAttribute('allow','clipboard-write');size();document.body.appendChild(frame);frame.getBoundingClientRect()}

@@ -19,6 +19,9 @@ async function call(path,body){
 
 const isBooking=f=>['name','phone','service','when'].every(n=>f?.fields?.some(x=>x.name===n));
 const initials=n=>(n||'C').trim().split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase();
+const IC={cal:'M7 3v3M17 3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z',
+  clock:'M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z',plus:'M12 5v14M5 12h14'};
+const Icon=({d})=><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d={d} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>;
 const localToday=()=>{const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,10)};
 
 /* Booking request: the visitor picks a service and a day, sees the clinic's real open times (doctor schedules, closures and
@@ -262,11 +265,18 @@ export default function Widget(){
     <div className={'wg'+(embedded?' wg--embed':'')}>
       <header className="wg-head">
         <span className="wg-avatar" aria-hidden="true">{initials(name)}</span>
-        <div className="wg-id"><h1>{name}</h1><p><span className="wg-dot" aria-hidden="true"/>Online now</p></div>
-        {chat&&!manage&&!ended&&<button type="button" className="wg-link" onClick={()=>setManage(true)}>Manage booking</button>}
+        <div className="wg-id"><h1>{name}</h1><p>Online now · replies in seconds</p></div>
+        {chat&&!manage&&!ended&&<button type="button" className="wg-manage" onClick={()=>setManage(true)} aria-label="Manage my booking">
+          <Icon d={IC.cal}/><span>My booking</span></button>}
       </header>
       <div className="wg-log" ref={logRef} role="log" aria-live="polite" aria-label="Conversation">
         <div className="wg-msg bot"><span className="sr">Assistant: </span>{greeting}</div>
+        {chat&&!msgs.length&&!busy&&!form&&!manage&&!ended&&<div className="wg-starts" role="group" aria-label="Suggestions">
+          <p className="wg-starts-h">Popular</p>
+          <button type="button" className="wg-start" onClick={()=>send('I would like to book an appointment.')}><Icon d={IC.plus}/>Book a visit</button>
+          <button type="button" className="wg-start" onClick={()=>send('What are your opening hours?')}><Icon d={IC.clock}/>Opening hours</button>
+          <button type="button" className="wg-start" onClick={()=>setManage(true)}><Icon d={IC.cal}/>Change or cancel a booking</button>
+        </div>}
         {msgs.map((m,i)=>(
           <div key={m.pending?'p'+m.created_at:m.created_at+m.role+i} className={'wg-msg '+(m.role==='cust'?'me':m.role)+(m.pending?' sending':'')}>
             {m.role==='staff'?<small className="wg-who">{name} team</small>:<span className="sr">{m.role==='cust'?'You: ':'Assistant: '}</span>}
@@ -312,10 +322,10 @@ export default function Widget(){
         <label htmlFor="wg-text" className="sr">Type your message</label>
         <input id="wg-text" value={text} onChange={e=>setText(e.target.value)} placeholder="Ask a question or book a visit" maxLength={1000} disabled={!chat||busy||ended} autoComplete="off"/>
         <button className="wg-send" disabled={!chat||busy||ended||!text.trim()} aria-label={busy?'Sending':'Send message'}>
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 12h14M12 5l7 7-7 7" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </button>
       </form>
-      <p className="wg-foot">Powered by Solara</p>
+      <p className="wg-foot"><svg width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5" fill="currentColor"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>Powered by Solara</p>
     </div>
   );
 }
