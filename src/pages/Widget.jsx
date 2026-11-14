@@ -2,6 +2,7 @@
 import {useEffect,useRef,useState} from 'react';
 import '../widget.css';
 import {Reveal} from '../lib/Reveal';
+import {reasonProblem} from '../../supabase/functions/_shared/tools/reason.js';
 import {Field,PhoneField,problem,phoneProblem} from '../lib/fields';
 import TimeClock,{label12} from '../lib/TimeClock';
 import {isWhenField,serviceOf,whenLabel} from '../lib/whenField';
@@ -92,7 +93,7 @@ function WhenPicker({id,label,required,value,onChange,chat,service}){
 /* Patient self-service: prove the phone number with a texted code, then move or cancel your own appointments. */
 function ManagePanel({chat,onClose,onChanged}){
   const [step,setStep]=useState('phone'),[phone,setPhone]=useState(''),[code,setCode]=useState(''),[list,setList]=useState([]);
-  const [busy,setBusy]=useState(false),[err,setErr]=useState(''),[info,setInfo]=useState(''),[moving,setMoving]=useState(null),[sure,setSure]=useState(null);
+  const [busy,setBusy]=useState(false),[err,setErr]=useState(''),[info,setInfo]=useState(''),[moving,setMoving]=useState(null),[sure,setSure]=useState(null),[why,setWhy]=useState('');
   const [date,setDate]=useState(localToday()),[slots,setSlots]=useState(null),[time,setTime]=useState(''),[tick,setTick]=useState(0);
   const key=useRef('mng-'+crypto.randomUUID());
   const api=(action,extra={})=>call('/functions/v1/widget-chat',{action,conversation_id:chat.conversation_id,token:chat.token,...extra});
@@ -122,7 +123,10 @@ function ManagePanel({chat,onClose,onChanged}){
         {list.map(b=><div key={b.id} className="wg-appt">
           <div><b>{b.service}</b> with {b.doctor}<br/><small>{nice(b.when)}{b.status==='requested'?' · waiting for confirmation':''}</small></div>
           {sure===b.id
-            ?<div className="acts"><button className="btn" disabled={busy} onClick={()=>run(async()=>{await api('cancel',{booking_id:b.id,key:key.current+'-c-'+b.id});setSure(null);onChanged();await load()})}>Yes, cancel it</button><button className="btn ghost" onClick={()=>setSure(null)}>Keep it</button></div>
+            ?<div className="wg-why">
+              <div className="f"><label htmlFor={'why-'+b.id}>Why are you cancelling? *</label><textarea id={'why-'+b.id} rows={2} maxLength={300} value={why} onChange={e=>setWhy(e.target.value)} placeholder="For example: I have a work trip that day"/></div>
+              {why&&reasonProblem(why)&&<small className="wg-hint">{reasonProblem(why)}</small>}
+              <div className="acts"><button className="btn danger" disabled={busy||!!reasonProblem(why)} onClick={()=>run(async()=>{await api('cancel',{booking_id:b.id,reason:why.trim(),key:key.current+'-c-'+b.id});setSure(null);setWhy('');onChanged();await load()})}>Cancel appointment</button><button className="btn ghost" onClick={()=>{setSure(null);setWhy('')}}>Keep it</button></div></div>
             :<div className="acts"><button className="btn ghost" onClick={()=>{setMoving(b);setDate(b.when.slice(0,10));setTime('')}}>Reschedule</button><button className="btn ghost" onClick={()=>setSure(b.id)}>Cancel</button></div>}
         </div>)}
       </div>}
@@ -148,7 +152,7 @@ export default function Widget(){
   const org=new URLSearchParams(location.search).get('key');
   const [chat,setChat]=useState(null),[msgs,setMsgs]=useState([]),[text,setText]=useState(''),[busy,setBusy]=useState(false);
   const [err,setErr]=useState(''),[form,setForm]=useState(null),[values,setValues]=useState({}),[name,setName]=useState('Clinic');
-  const [greeting,setGreeting]=useState('Hi! How can I help you today?'),[status,setStatus]=useState('handled'),[manage,setManage]=useState(false);
+  const [greeting,setGreeting]=useState('Hi! How can I help you today?'),[status,setStatus]=useState('handled'),[manage,setManage]=useState(false),[confirm,setConfirm]=useState(null),[deciding,setDeciding]=useState(false);
   const lastAt=useRef('1970-01-01T00:00:00Z'),logRef=useRef(null),key=`solara.widget.${org}`;
 
   // Stored messages are merged by identity, so overlapping polls can never show a message twice. An optimistic message
@@ -218,14 +222,25 @@ export default function Widget(){
       const j=await call('/functions/v1/widget-chat',{conversation_id:chat.conversation_id,token:chat.token,text:content});
       if(j.form){setForm(j.form);setValues({})}else setForm(null);
       if(j.manage)setManage(true);
+      setConfirm(j.confirm||null);
       if(j.status)setStatus(j.status);
       await poll(chat);
     }catch(e){
-      setErr(e.message);setMsgs(m=>m.filter(x=>x!==mine));
+      setErr(e.message);setMsgs(m=>m.filter(x=>x!==mine));if(e.status===409&&/ended/.test(e.message))setStatus('closed');
       if(e.status===401){localStorage.removeItem(key)}
     }finally{setBusy(false)}
   };
 
+  // Solara asked to cancel; nothing happens until the person decides here.
+  const decide=async yes=>{
+    const c=confirm;if(!c)return;
+    if(!yes){setConfirm(null);send('No, keep my appointment.');return}
+    setDeciding(true);setErr('');
+    try{await call('/functions/v1/widget-chat',{action:'confirm_cancel',conversation_id:chat.conversation_id,token:chat.token,booking_id:c.id,reason:c.reason,key:'cc-'+c.id});setConfirm(null);await poll(chat)}
+    catch(e){setErr(e.message)}finally{setDeciding(false)}
+  };
+  const restart=()=>{try{localStorage.removeItem(key)}catch{}location.reload()};
+  const ended=status==='closed';
   const submitText=e=>{e.preventDefault();const t=text.trim();if(!t)return;setText('');send(t)};
   const submitForm=e=>{
     e.preventDefault();
@@ -248,7 +263,7 @@ export default function Widget(){
       <header className="wg-head">
         <span className="wg-avatar" aria-hidden="true">{initials(name)}</span>
         <div className="wg-id"><h1>{name}</h1><p><span className="wg-dot" aria-hidden="true"/>Online now</p></div>
-        {chat&&!manage&&<button type="button" className="wg-link" onClick={()=>setManage(true)}>Manage booking</button>}
+        {chat&&!manage&&!ended&&<button type="button" className="wg-link" onClick={()=>setManage(true)}>Manage booking</button>}
       </header>
       <div className="wg-log" ref={logRef} role="log" aria-live="polite" aria-label="Conversation">
         <div className="wg-msg bot"><span className="sr">Assistant: </span>{greeting}</div>
@@ -259,7 +274,16 @@ export default function Widget(){
           </div>))}
         {busy&&<div className="wg-typing" aria-label="Assistant is typing"><i/><i/><i/></div>}
         {manage&&chat&&<ManagePanel chat={chat} onClose={()=>setManage(false)} onChanged={()=>poll(chat)}/>}
+        {confirm&&!ended&&<div className="wg-confirm" role="alertdialog" aria-labelledby="wg-cf-t" aria-describedby="wg-cf-d">
+          <div className="wg-confirm-h"><span className="wg-confirm-ic" aria-hidden="true">!</span><b id="wg-cf-t">Cancel this appointment?</b></div>
+          <dl id="wg-cf-d"><div><dt>Appointment</dt><dd>{confirm.service||'Appointment'}{confirm.doctor?' with '+confirm.doctor:''}</dd></div>
+            <div><dt>When</dt><dd>{new Date(confirm.when+':00').toLocaleString([],{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}</dd></div>
+            <div><dt>Your reason</dt><dd>“{confirm.reason}”</dd></div></dl>
+          <p className="wg-confirm-note">This can't be undone. You can book a new time afterwards.</p>
+          <div className="acts"><button className="btn danger" disabled={deciding} onClick={()=>decide(true)}>{deciding?'Cancelling…':'Cancel appointment'}</button><button className="btn ghost" disabled={deciding} onClick={()=>decide(false)}>Keep it</button></div>
+        </div>}
         {status==='handoff'&&<div className="wg-note">Our team has been notified and will reply here.</div>}
+        {ended&&<div className="wg-note wg-ended">This conversation has ended. <button type="button" className="wg-link" onClick={restart}>Start a new chat</button></div>}
         {form&&isBooking(form)&&chat&&<BookingPicker form={form} chat={chat} onDone={()=>{setForm(null);poll(chat)}} onCancel={()=>setForm(null)}/>}
         {form&&!isBooking(form)&&(
           <form className="wg-form" onSubmit={submitForm} aria-label={form.title||'Enquiry'}>
@@ -286,8 +310,8 @@ export default function Widget(){
       {err&&<p className="wg-err" role="alert">{err}</p>}
       <form className="wg-input" onSubmit={submitText}>
         <label htmlFor="wg-text" className="sr">Type your message</label>
-        <input id="wg-text" value={text} onChange={e=>setText(e.target.value)} placeholder="Ask a question or book a visit" maxLength={1000} disabled={!chat||busy} autoComplete="off"/>
-        <button className="wg-send" disabled={!chat||busy||!text.trim()} aria-label={busy?'Sending':'Send message'}>
+        <input id="wg-text" value={text} onChange={e=>setText(e.target.value)} placeholder="Ask a question or book a visit" maxLength={1000} disabled={!chat||busy||ended} autoComplete="off"/>
+        <button className="wg-send" disabled={!chat||busy||ended||!text.trim()} aria-label={busy?'Sending':'Send message'}>
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 12h14M12 5l7 7-7 7" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </button>
       </form>

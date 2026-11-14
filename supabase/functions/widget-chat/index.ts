@@ -127,7 +127,7 @@ Deno.serve(async req=>{
     }
     const key=typeof body.key==='string'&&body.key.length>=8?{idempotency_key:body.key.slice(0,128)}:{};
     if(body.action==='cancel'){
-      const env=await executeTool(registry,'cancel_my_appointment',{booking_id:String(body.booking_id??''),...key},vctx,db);
+      const env=await executeTool(registry,'cancel_my_appointment',{booking_id:String(body.booking_id??''),reason:String(body.reason??'').slice(0,300),...key},vctx,db);
       if(!env.ok)return J({error:env.error.message},409);
       if(!env.meta?.replayed){
         await say('bot',`Your ${env.data.service} on ${nice(env.data.when)} is cancelled. You're welcome to book again anytime.`);
@@ -144,6 +144,19 @@ Deno.serve(async req=>{
   }
 
   // 3. Open times for the booking picker. No model call: the same tool the assistant uses, through the executor.
+  // 3d. The person tapped "Cancel appointment" on Solara's confirmation card.
+  if(body.action==='confirm_cancel'){
+    if(convo.status==='closed')return J({error:'This conversation has ended.'},409);
+    const key=typeof body.key==='string'&&body.key.length>=8?{idempotency_key:body.key.slice(0,128)}:{};
+    const env=await executeTool(registry,'cancel_chat_appointment',{booking_id:String(body.booking_id??''),reason:String(body.reason??'').slice(0,300),...key},ctx({}),db);
+    if(!env.ok)return J({error:env.error.message},409);
+    if(!env.meta?.replayed){
+      await say('cust','Yes, cancel it.');
+      await say('bot',`Done: your ${env.data.service} on ${nice(env.data.when)} is cancelled. You're welcome to book again anytime.`);
+      await svc.from('alerts').insert({org_id:orgId,convo:cid,customer:convo.customer,reason:'other',text:`Patient cancelled ${env.data.service} on ${env.data.when}`.slice(0,160)});
+    }
+    return J({ok:true});
+  }
   if(body.action==='slots'){
     const env=await executeTool(registry,'check_availability',{date:String(body.date??''),...(body.service?{service:String(body.service).slice(0,80)}:{})},ctx({}),db);
     return env.ok?J({date:env.data.date,slots:env.data.slots,note:env.data.note??null}):J({error:env.error.message},400);
@@ -173,6 +186,8 @@ Deno.serve(async req=>{
   const text=String(body.text??'').trim().slice(0,1000);
   if(!text)return J({error:'Please type a message first.'},400);
   if(await recent())return J({error:'Please wait a moment before sending another message.'},429);
+  // An ended chat takes no more messages; the visitor can start a new one.
+  if(convo.status==='closed')return J({closed:true,status:'closed',error:'This conversation has ended. Start a new chat to continue.'},409);
   await say('cust',text);
 
   // Safety check first. Emergencies never depend on the model.
@@ -180,7 +195,7 @@ Deno.serve(async req=>{
   // With the team already, the message is kept but not answered automatically.
   if(!t&&convo.status==='handoff')return J({reply:null,handoff:true,status:'handoff'});
 
-  const out:any={handoff:false,reason:null,form:null,booked:false,requested:false};
+  const out:any={handoff:false,reason:null,form:null,booked:false,requested:false,confirm:null};
   let reply:string,urgent=null;const t0=Date.now(),attempts:any[]=[];
   if(t){reply=t.reply;out.handoff=true;out.reason=t.reason;urgent=t.urgent??null}
   else{
@@ -213,9 +228,11 @@ Deno.serve(async req=>{
   await say('bot',reply);
   if(out.handoff){
     // A temporary AI failure alerts the team but does not silence the chat: the next message gets a real answer again.
-    if(out.reason!=='error')await svc.from('conversations').update({status:'handoff'}).eq('id',cid);
+    // Once with the team, Solara does not answer in this chat again (an AI failure included).
+    await svc.from('conversations').update({status:'handoff'}).eq('id',cid);
     const reason=REASONS.includes(out.reason)?out.reason:'other';
     await svc.from('alerts').insert({org_id:orgId,convo:cid,customer:convo.customer,reason,text:text.slice(0,160)});
   }
-  return J({reply,handoff:out.handoff,status:out.handoff&&out.reason!=='error'?'handoff':'handled',form:out.form?cleanForm(out.form):null,manage:!!out.manage&&smsReady(),urgent});
+  return J({reply,handoff:out.handoff,status:out.handoff?'handoff':'handled',form:out.form?cleanForm(out.form):null,manage:!!out.manage&&smsReady(),urgent,
+    confirm:!out.handoff&&out.confirm?out.confirm:null});
 });

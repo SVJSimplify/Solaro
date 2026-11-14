@@ -18,7 +18,7 @@ function must(r,{read=false}={}){
 /* Rows as the front desk and booking engine use them. */
 const FROM={
   doctors:r=>({id:r.id,name:r.name,specialty:r.specialty,services:r.services??[],days:r.days??[],start:hm(r.start_time),end:hm(r.end_time),slot:r.slot}),
-  bookings:r=>({id:r.id,name:r.name,phone:r.phone,service:r.service,when:String(r.starts_at).slice(0,16),doctor_id:r.doctor_id,doctor:r.doctor,status:r.status}),
+  bookings:r=>({id:r.id,name:r.name,phone:r.phone,service:r.service,when:String(r.starts_at).slice(0,16),doctor_id:r.doctor_id,doctor:r.doctor,status:r.status,conversation_id:r.conversation_id??null}),
   services:r=>({id:r.id,name:r.name}),
   kb:r=>({id:r.id,title:r.title,body:r.body,keywords:r.keywords}),
   closures:r=>({id:r.id,date:r.date}),
@@ -128,7 +128,7 @@ export function supabaseAdapter(sb){
         const r=must(await sb.from('bookings').insert({org_id:orgId,name:b.name,phone:b.phone,service:b.service||'',starts_at:b.when,doctor_id:b.doctor_id||null,doctor:b.doctor||'',status:b.status||'booked',source:b.source||'staff',conversation_id:b.conversation_id||null}).select().single());
         return FROM.bookings(r);
       },
-      async setBookingStatus(orgId,id,status){must(await sb.from('bookings').update({status}).eq('org_id',orgId).eq('id',id))},
+      async setBookingStatus(orgId,id,status,reason){must(await sb.from('bookings').update({status,...(reason?{cancel_reason:String(reason).slice(0,300)}:{})}).eq('org_id',orgId).eq('id',id))},
       async updateBooking(orgId,id,b){must(await sb.from('bookings').update({starts_at:b.when,doctor_id:b.doctor_id,doctor:b.doctor,status:b.status,reminded:false}).eq('org_id',orgId).eq('id',id))},
       async updateDoctor(orgId,id,p){
         const row={};if(p.specialty!==undefined)row.specialty=p.specialty;if(p.days)row.days=p.days;if(p.start)row.start_time=p.start;if(p.end)row.end_time=p.end;if(p.services)row.services=p.services;
@@ -172,7 +172,7 @@ export function publicAdapter(svc,orgId,conversationId){
       async list(_o,table,opts){if(!READ.has(table))throw new ToolError('PERMISSION_DENIED','Not available.',{retryable:false});return all.legacy.list(orgId,table,opts)},
       addBooking:(_o,b)=>all.legacy.addBooking(orgId,{...b,source:'website',conversation_id:conversationId}),
       // Patient self-service: the tools have already checked the booking is on the verified phone number.
-      setBookingStatus:(_o,id,status)=>all.legacy.setBookingStatus(orgId,id,status),
+      setBookingStatus:(_o,id,status,reason)=>all.legacy.setBookingStatus(orgId,id,status,reason),
       updateBooking:(_o,id,b)=>all.legacy.updateBooking(orgId,id,b),
     },
   };

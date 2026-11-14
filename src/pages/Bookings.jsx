@@ -103,7 +103,7 @@ export default function Bookings(){
   const offers=s=>docs.filter(d=>!s||d.services.includes(s));
   const ws=addDays(date,-dow(date)),step=view==='week'?7:1;
 
-  const apptCard=b=><button key={b.id} className={'appt '+b.status} onClick={()=>openAppt(b)} title={`${STATUS[b.status]} · ${b.service||'appointment'} · ${b.doctor||'Unassigned'}`}>
+  const apptCard=b=><button key={b.id} className={'appt '+b.status+(b.when<now&&b.status!=='cancelled'?' past':'')} onClick={()=>openAppt(b)} title={`${STATUS[b.status]} · ${b.service||'appointment'} · ${b.doctor||'Unassigned'}`}>
     <b>{clock(b.when)}</b><span>{b.name}</span><small>{b.status==='requested'?'Request · ':b.status==='no_show'?'No-show · ':b.status==='completed'?'Done · ':''}{b.doctor||'Unassigned'}</small></button>;
 
   return(<>
@@ -155,7 +155,7 @@ export default function Bookings(){
       :<div className="docs">
         {shown.map(d=>{
           const own=day.filter(b=>b.doctor_id===d.id),slots=slotsFor(d,date),extra=own.filter(b=>!slots.includes(b.when));
-          const cell=b=><button key={b.id} className={'slot booked '+b.status} onClick={()=>openAppt(b)}><b>{clock(b.when)}</b> {b.name}{b.status==='requested'?' · request':b.status==='booked'?'':' · '+STATUS[b.status].toLowerCase()}</button>;
+          const cell=b=><button key={b.id} className={'slot booked '+b.status+(b.when<now&&b.status!=='cancelled'?' past':'')} onClick={()=>openAppt(b)}><b>{clock(b.when)}</b> {b.name}{b.status==='requested'?' · request':b.status==='booked'?'':' · '+STATUS[b.status].toLowerCase()}</button>;
           return(<div key={d.id} className="card doc">
             <div className="doc-h"><h3>{d.name}</h3><small>{d.specialty?d.specialty+' · ':''}{d.start}–{d.end} · {own.length} booked</small></div>
             {dayClosed&&!own.length?<p className="route">Clinic closed.</p>:slots.length||extra.length
@@ -170,7 +170,7 @@ export default function Bookings(){
           </div>);
         })}
         {!flt.doctor&&day.some(b=>!docs.some(d=>d.id===b.doctor_id))&&<div className="card doc"><div className="doc-h"><h3>Unassigned</h3></div>
-          <div className="slots">{day.filter(b=>!docs.some(d=>d.id===b.doctor_id)).map(b=><button key={b.id} className={'slot booked '+b.status} onClick={()=>openAppt(b)}><b>{clock(b.when)}</b> {b.name}</button>)}</div>
+          <div className="slots">{day.filter(b=>!docs.some(d=>d.id===b.doctor_id)).map(b=><button key={b.id} className={'slot booked '+b.status+(b.when<now&&b.status!=='cancelled'?' past':'')} onClick={()=>openAppt(b)}><b>{clock(b.when)}</b> {b.name}</button>)}</div>
         </div>}
       </div>}
     </>}
@@ -194,7 +194,7 @@ export default function Bookings(){
       </div>
       {list.length?<div className="tblwrap"><table className="tbl">
         <thead><tr><th><button className="sort" onClick={()=>setDesc(!desc)} aria-label="Reverse the order">When <Icon n={(flt.range==='past')!==desc?'right':'left'} size={12}/></button></th><th>Patient</th><th>Service</th><th>Doctor</th><th>Status</th></tr></thead>
-        <tbody>{list.slice(0,300).map(b=><tr key={b.id} className={b.id===pickId?'on':''} tabIndex={0} onClick={()=>openAppt(b)} onKeyDown={e=>e.key==='Enter'&&openAppt(b)}>
+        <tbody>{list.slice(0,300).map(b=><tr key={b.id} className={[b.id===pickId?'on':'',b.status==='cancelled'?'row-cancelled':b.when<now?'row-past':''].join(' ').trim()} tabIndex={0} onClick={()=>openAppt(b)} onKeyDown={e=>e.key==='Enter'&&openAppt(b)}>
           <td>{nice(b.when)}</td><td><b>{b.name}</b><br/><small>{b.phone}</small></td><td>{b.service}</td><td>{b.doctor||'Unassigned'}</td><td><Chip b={b} past={b.when<now}/></td></tr>)}</tbody>
       </table></div>:<Empty icon="search" title="No appointments match">Change the filters, or search by a different name or number.</Empty>}
       <p className="route">{list.length>300?`Showing the first 300 of ${list.length}. Narrow the search to see the rest.`:`${list.length} appointment${list.length===1?'':'s'}`} · history covers the last 180 days.</p>
@@ -245,6 +245,7 @@ export default function Bookings(){
         <dl className="facts">
           <dt>Phone</dt><dd><a href={tel(pick.phone)}>{pick.phone}</a></dd>
           <dt>Doctor</dt><dd>{pick.doctor||'Unassigned'}</dd>
+          {pick.status==='cancelled'&&pick.cancelReason&&<><dt>Why cancelled</dt><dd>“{pick.cancelReason}”</dd></>}
           <dt>Booked through</dt><dd>{SOURCE[pick.source]||'Front desk'}{pick.created?`, ${new Date(pick.created).toLocaleDateString([],{month:'short',day:'numeric'})}`:''}</dd>
           <dt>Patient told</dt><dd>{msgs.length?msgs.map(m=><div key={m.id} className={m.status==='failed'?'warn':''}>{KIND[m.kind]||'Message'}: {MSG[m.status]||m.status}{m.status==='failed'&&m.error?` (${m.error})`:''}</div>):'No messages for this appointment'}</dd>
         </dl>

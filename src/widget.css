@@ -124,3 +124,18 @@
 .wg .caret{display:inline-block;width:2px;height:1em;margin-left:2px;vertical-align:-2px;background:currentColor;opacity:.5;animation:wgcaret 1s steps(2) infinite}
 @keyframes wgcaret{50%{opacity:0}}
 @media (prefers-reduced-motion:reduce){.wg .caret{animation:none}}
+/* Solara's confirmation card: nothing happens until the person decides. */
+.wg-confirm{margin:6px 0 4px;border:1px solid rgba(217,111,84,.55);background:#2B211E;border-radius:14px;padding:14px 14px 12px;color:#F4ECE4;animation:wgpop .2s ease-out}
+.wg-confirm-h{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.wg-confirm-h b{font:600 1.05rem 'Cormorant Garamond',Georgia,serif;letter-spacing:.01em}
+.wg-confirm-ic{width:22px;height:22px;border-radius:50%;background:#D96F54;color:#1A1210;display:grid;place-items:center;font:700 .8rem system-ui}
+.wg-confirm dl{margin:0 0 8px;display:grid;gap:6px}
+.wg-confirm dl div{display:grid;grid-template-columns:92px 1fr;gap:8px;font-size:.86rem}
+.wg-confirm dt{color:#B9AA9C}.wg-confirm dd{margin:0}
+.wg-confirm-note{font-size:.78rem;color:#B9AA9C;margin:0 0 10px}
+.wg .btn.danger{background:#E2725B;border-color:#E2725B;color:#1A1210}
+.wg-why{margin-top:8px;width:100%}.wg-why textarea{width:100%}
+.wg-hint{display:block;color:#F2A38F;font-size:.78rem;margin:-4px 0 6px}
+.wg-ended{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+@keyframes wgpop{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.wg-confirm{animation:none}}

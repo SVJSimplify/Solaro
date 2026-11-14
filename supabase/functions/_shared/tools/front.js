@@ -114,7 +114,11 @@ export const checkAvailability=def({name:'check_availability',public:true,patien
     const {doctors,bookings,closed,ex}=await loadAll(c,db,{date:a.date});
     if(closed.includes(a.date))return{date:a.date,slots:[],note:'the business is closed that day'};
     const slots=openSlots(doctors,bookings,a.date,a.service,nowLocal(c),16,ex);
-    return slots.length?{date:a.date,slots}:{date:a.date,slots:[],note:'no open times that day; try another date'};
+    if(slots.length)return{date:a.date,slots};
+    const now=nowLocal(c);
+    if(a.date<now.slice(0,10))return{date:a.date,slots:[],note:'That day has already passed. Please choose another day.'};
+    if(a.date===now.slice(0,10))return{date:a.date,slots:[],note:`No times left today: it is ${now.slice(11)} at the clinic and the last appointments have passed or are taken. Please choose tomorrow or a later day.`};
+    return{date:a.date,slots:[],note:'No open times that day (the clinic may be closed, or every time is taken). Please choose another day.'};
   }});
 
 export const bookAppointment=def({name:'book_appointment',patientData:'contact',writes:true,idempotent:'required',autoKey:true,
@@ -227,6 +231,48 @@ export const requestHandoff=def({name:'request_handoff',public:true,patientData:
    verification record; nothing the visitor or the model sends can set it. Only bookings on that number can be seen or changed.
    These tools are hidden from the model: the patient drives them from the "Manage my appointment" panel. */
 const UUID={type:'string',pattern:'^[0-9a-f-]{36}$'};
+import {reasonProblem} from './reason.js';
+export {reasonProblem};
+const needReason=r=>{const p=reasonProblem(r);if(p)throw new ToolError('MISSING_INFORMATION',p,{field:'reason',retryable:false,nextStep:'Ask the person why they are cancelling.'})};
+const REASON_IN={type:'string',minLength:1,maxLength:300,description:"The person's own reason for cancelling, in their words."};
+/* Upcoming appointments that were booked in this chat: the only ones Solara can offer to cancel without a phone check. */
+const chatBookings=async(c,db)=>{
+  const now=nowLocal(c);
+  return(await db.legacy.list(c.orgId,'bookings',{from:now.slice(0,10)})).filter(b=>b.conversation_id===c.conversationId&&(b.status==='booked'||b.status==='requested')&&b.when>=now);
+};
+
+/* Solara proposes; the person decides. This only shows a confirmation card with the appointment and reason.
+   Nothing is cancelled until the person taps "Cancel appointment" on it. */
+export const proposeCancellation=def({name:'propose_cancellation',public:true,patientData:'contact',
+  description:'Offer to cancel an upcoming appointment that was booked in this chat. Ask for their reason first; a real reason is required. This shows the person a confirmation card; it does NOT cancel. Never say the appointment is cancelled.',
+  input:{type:'object',additionalProperties:false,required:['reason'],properties:{when:{...WHEN,description:'Start time of the appointment to cancel, if more than one'},reason:REASON_IN}},
+  output:{type:'object',required:['awaiting_confirmation'],properties:{awaiting_confirmation:{type:'boolean'},appointment:{type:'object'}}},
+  errors:['MISSING_INFORMATION','ENTITY_NOT_FOUND','AMBIGUOUS_ENTITY','UNAVAILABLE'],
+  run:async(a,c,db)=>{
+    needReason(a.reason);
+    const all=await chatBookings(c,db),hit=a.when?all.filter(b=>b.when===a.when):all;
+    if(!hit.length)throw new ToolError('ENTITY_NOT_FOUND',all.length?'No appointment at that time was booked in this chat.':'No upcoming appointment was booked in this chat.',{retryable:false,
+      alternatives:all.map(b=>b.when.replace('T',' ')),nextStep:all.length?'Ask which one.':'Tell them to tap "Manage booking", or offer to pass them to the team.'});
+    if(hit.length>1)throw new ToolError('AMBIGUOUS_ENTITY','More than one appointment matches.',{alternatives:hit.map(b=>`${b.service} ${b.when.replace('T',' ')}`),nextStep:'Ask which one.',retryable:false});
+    const b=hit[0],appointment={id:b.id,when:b.when,service:b.service,doctor:b.doctor,status:b.status};
+    if(c.out)c.out.confirm={action:'cancel',...appointment,reason:String(a.reason).trim().slice(0,300)};
+    return{awaiting_confirmation:true,appointment};
+  }});
+
+/* Runs only from the person's tap on the confirmation card (never by the model). */
+export const cancelChatAppointment=def({name:'cancel_chat_appointment',public:true,hidden:true,patientData:'contact',writes:true,idempotent:'required',autoKey:true,
+  description:'Cancel an appointment booked in this chat after the person confirmed it.',
+  input:{type:'object',additionalProperties:false,required:['booking_id','reason'],properties:{booking_id:UUID,reason:REASON_IN,idempotency_key:{type:'string',minLength:8,maxLength:128}}},
+  output:{type:'object',required:['cancelled','when'],properties:{cancelled:{type:'boolean'},when:{type:'string'},service:{type:'string'}}},
+  errors:['MISSING_INFORMATION','ENTITY_NOT_FOUND','UNAVAILABLE'],
+  run:async(a,c,db)=>{
+    needReason(a.reason);
+    const b=(await chatBookings(c,db)).find(x=>x.id===a.booking_id);
+    if(!b)throw new ToolError('ENTITY_NOT_FOUND','That appointment is no longer upcoming in this chat.',{retryable:false});
+    await db.legacy.setBookingStatus(c.orgId,b.id,'cancelled',a.reason);
+    await db.logAudit(c.orgId,'patient.cancelled',`${b.name} cancelled ${b.service} at ${b.when.replace('T',' ')} (website chat). Reason: ${String(a.reason).trim().slice(0,200)}`);
+    return{cancelled:true,when:b.when.replace('T',' '),service:b.service};
+  }});
 const needVerified=c=>{if(!c.verifiedPhone)throw new ToolError('PERMISSION_DENIED','Please verify your phone number first.',{retryable:false})};
 const mine=async(c,db,id)=>{
   const now=nowLocal(c),p=digits(c.verifiedPhone);
@@ -246,14 +292,15 @@ export const myAppointments=def({name:'my_appointments',public:true,hidden:true,
 
 export const cancelMyAppointment=def({name:'cancel_my_appointment',public:true,hidden:true,patientData:'contact',writes:true,idempotent:'required',autoKey:true,
   description:'Cancel one upcoming appointment on the verified phone number of this chat.',
-  input:{type:'object',additionalProperties:false,required:['booking_id'],properties:{booking_id:UUID,idempotency_key:{type:'string',minLength:8,maxLength:128}}},
+  input:{type:'object',additionalProperties:false,required:['booking_id','reason'],properties:{booking_id:UUID,reason:REASON_IN,idempotency_key:{type:'string',minLength:8,maxLength:128}}},
   output:{type:'object',required:['cancelled','when'],properties:{cancelled:{type:'boolean'},when:{type:'string'},service:{type:'string'}}},
-  errors:['ENTITY_NOT_FOUND','PERMISSION_DENIED','UNAVAILABLE'],
+  errors:['MISSING_INFORMATION','ENTITY_NOT_FOUND','PERMISSION_DENIED','UNAVAILABLE'],
   authorize:(a,c)=>needVerified(c),
   run:async(a,c,db)=>{
+    needReason(a.reason);
     const b=await mine(c,db,a.booking_id);
-    await db.legacy.setBookingStatus(c.orgId,b.id,'cancelled');
-    await db.logAudit(c.orgId,'patient.cancelled',`${b.name} cancelled ${b.service} at ${b.when.replace('T',' ')} (website, verified)`);
+    await db.legacy.setBookingStatus(c.orgId,b.id,'cancelled',a.reason);
+    await db.logAudit(c.orgId,'patient.cancelled',`${b.name} cancelled ${b.service} at ${b.when.replace('T',' ')} (website, verified). Reason: ${String(a.reason).trim().slice(0,200)}`);
     if(c.out)c.out.cancelled=b;
     return{cancelled:true,when:b.when.replace('T',' '),service:b.service};
   }});
@@ -321,7 +368,7 @@ export const addService=def({name:'add_service',minRole:'admin',patientData:'non
 
 export const frontTools=[getTime,searchAnswers,listDoctors,checkAvailability,bookAppointment,findBookings,cancelBooking,showForm,doctorBusyTimes,requestHandoff];
 /* Website visitors: business answers, open times, a booking request and a hand-off. Never another patient's bookings. */
-export const publicOnlyTools=[requestAppointment,myAppointments,cancelMyAppointment,rescheduleMyAppointment];
+export const publicOnlyTools=[requestAppointment,myAppointments,cancelMyAppointment,rescheduleMyAppointment,proposeCancellation,cancelChatAppointment];
 
 /* The booking form shown whenever someone asks to book. The website renders it as a date and open-times picker. */
 const DEFAULT_SERVICES=['Cleaning','Exam','Consultation'];

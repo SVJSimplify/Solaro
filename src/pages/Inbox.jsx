@@ -19,7 +19,7 @@ export default function Inbox(){
   const [params]=useSearchParams(),[sel,setSel]=useState(params.get('c')),[callOpen,setCallOpen]=useState(false),[typing,setTyping]=useState(null),[reply,setReply]=useState('');
   const seen=useRef({}),box=useRef(null),[pending,setPending]=useState([]),opened=useRef({});
   const all=[...cv].sort((a,b)=>(Number(isUrgent(b))-Number(isUrgent(a)))||(b.created-a.created));
-  const list=all.filter(x=>(tab==='all'||(tab==='open'?x.status==='handoff':x.status!=='handoff'))&&(!q.trim()||x.customer.toLowerCase().includes(q.trim().toLowerCase())||x.messages.some(m=>String(m.t).toLowerCase().includes(q.trim().toLowerCase()))));
+  const list=all.filter(x=>(tab==='all'||(tab==='open'?x.status==='handoff':tab==='closed'?x.status==='closed':x.status==='handled'))&&(!q.trim()||x.customer.toLowerCase().includes(q.trim().toLowerCase())||x.messages.some(m=>String(m.t).toLowerCase().includes(q.trim().toLowerCase()))));
   const c=list.find(x=>x.id===sel)||list[0];
   const open=cv.filter(x=>x.status==='handoff').length,bots=cv.reduce((n,x)=>n+x.messages.filter(m=>m.r==='bot').length,0);
   const base=c?seen.current[c.id]??0:0;
@@ -55,7 +55,7 @@ export default function Inbox(){
     const asPatient=as==='patient'&&isTest(c),p=optimistic(asPatient?'cust':'staff',v),from=c.messages.length+1;
     try{
       if(asPatient){await db.patch('convos',c.id,{messages:[...c.messages,{r:'cust',t:v,at:Date.now()}]});think(c.id,v,from)}
-      else await db.patch('convos',c.id,{messages:[...c.messages,{r:'staff',t:v,at:Date.now()}],status:'handled'});
+      else await db.patch('convos',c.id,{messages:[...c.messages,{r:'staff',t:v,at:Date.now()}]});
     }catch(err){unsend(p);setReply(v);toast('Not sent: '+err.message)}};
   /* A submitted form becomes a customer message carrying its values; the model then reads it like any other message. */
   const submitForm=async(form,{values,text,freeText})=>{
@@ -66,7 +66,12 @@ export default function Inbox(){
   const clearTests=async()=>{const t=cv.filter(isTest);if(!t.length)return toast('No test chats');if(!await confirm({title:`Delete ${t.length} test chat${t.length>1?'s':''}?`,body:'Only test chats are removed. Real patient conversations are kept.',confirm:'Delete test chats',danger:true}))return;for(const x of t)await db.del('convos',x.id);setSel(null);toast('Test chats cleared')};
   /* Only test chats can be deleted. Real customer conversations are kept. */
   const removeTest=async()=>{if(!await confirm({title:'Delete this test chat?',confirm:'Delete',danger:true}))return;await db.del('convos',c.id);setSel(null);toast('Test chat deleted')};
-  const resolve=async()=>{await db.patch('convos',c.id,{status:'handled',alerted:false});toast('Resolved')};
+  /* The team ends a conversation (the patient is told and can start a new chat) or reopens it with the team.
+     A chat handed to the team never goes back to Solara. */
+  const endChat=async()=>{
+    if(!await confirm({title:`End the conversation with ${c.customer}?`,body:'They are told it has ended and can start a new chat any time. Solara will not reply in it again.',confirm:'End conversation',cancel:'Keep it open'}))return;
+    try{await db.closeConversation(c.id,true);toast('Conversation ended')}catch(e){toast(e.message)}};
+  const reopen=async()=>{try{await db.closeConversation(c.id,false);toast('Reopened with your team')}catch(e){toast(e.message)}};
 
   return(<>
     <header><div><h1>Inbox</h1><p>{cv.length} conversation{cv.length===1?'':'s'}, {bots} repl{bots===1?'y':'ies'} from Solara{open?`, ${open} waiting for a person`:''}.</p></div>
@@ -74,7 +79,7 @@ export default function Inbox(){
     <div className="inbox">
       <div className="card list">
         <div className="list-h">
-          <div className="seg" role="group" aria-label="Show">{[['all','All'],['open',`Needs a person${open?` (${open})`:''}`],['done','Handled']].map(([k,l])=><button key={k} type="button" className="btn sm" aria-pressed={k===tab} onClick={()=>setTab(k)}>{l}</button>)}</div>
+          <div className="seg" role="group" aria-label="Show">{[['all','All'],['open',`With the team${open?` (${open})`:''}`],['done','Solara'],['closed','Ended']].map(([k,l])=><button key={k} type="button" className="btn sm" aria-pressed={k===tab} onClick={()=>setTab(k)}>{l}</button>)}</div>
           <label className="search"><Icon n="search" size={18}/><input type="search" placeholder="Search chats" aria-label="Search chats" value={q} onChange={e=>setQ(e.target.value)}/></label>
         </div>
         {list.map((x,i)=>(
@@ -86,7 +91,7 @@ export default function Inbox(){
       </div>
       <div className="card thread">
         {c?<>
-          <header><div><b>{c.customer}</b> <small>{c.channel}</small>{c.status==='handoff'&&(phoneOf(c.messages)?<button className="why" onClick={()=>setCallOpen(o=>!o)} aria-expanded={callOpen}> · {why(c)}</button>:<small className="why"> · {why(c)}</small>)}</div><span className="hdr-actions">{c.status==='handoff'&&<button className="btn sm" onClick={resolve}>Mark resolved</button>}{isTest(c)&&<button className="btn sm ghost" onClick={removeTest}>Delete test chat</button>}</span></header>
+          <header><div><b>{c.customer}</b> <small>{c.channel}</small>{c.status==='handoff'&&(phoneOf(c.messages)?<button className="why" onClick={()=>setCallOpen(o=>!o)} aria-expanded={callOpen}> · {why(c)}</button>:<small className="why"> · {why(c)}</small>)}</div><span className="hdr-actions">{c.status==='closed'?<><span className="chip cancelled" style={{textDecoration:'none'}}>Ended</span><button className="btn sm ghost" onClick={reopen}>Reopen</button></>:<button className="btn sm" onClick={endChat}>End conversation</button>}{isTest(c)&&<button className="btn sm ghost" onClick={removeTest}>Delete test chat</button>}</span></header>
           {callOpen&&c.status==='handoff'&&phoneOf(c.messages)&&<CallPanel phone={phoneOf(c.messages)} onClose={()=>setCallOpen(false)}/>}
           <div className="msgs" ref={box} aria-live="polite">
             {shown.map((m,i)=>(
@@ -99,10 +104,10 @@ export default function Inbox(){
               </Fragment>))}
             {thinking&&<div className="m bot typing" aria-label="Solara is typing"><i/><i/><i/></div>}
           </div>
-          <form className="send" onSubmit={send}>
+          {c.status==='closed'?<p className="route send-ended">This conversation has ended. Reopen it to reply.</p>:<form className="send" onSubmit={send}>
             {isTest(c)&&<div className="seg" role="group" aria-label="Send as">{[['patient','As the patient'],['team','As the team']].map(([k,l])=><button key={k} type="button" className="btn sm" aria-pressed={k===as} onClick={()=>setAs(k)}>{l}</button>)}</div>}
             <input value={reply} maxLength={1000} onChange={e=>setReply(e.target.value)} placeholder={as==='patient'&&isTest(c)?'Type what a patient would ask…':`Reply to ${c.customer}…`} aria-label="Message"/><button className="btn" disabled={!reply.trim()}>Send</button>
-          </form>
+          </form>}
         </>:<Empty icon="chat" title="No conversation selected">Pick a chat on the left to read it and reply.</Empty>}
       </div>
     </div>

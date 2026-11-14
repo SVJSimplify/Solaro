@@ -572,7 +572,7 @@ const REQ={name:'Ana Diaz',phone:'+1 415 555 0132',service:'Cleaning',when:'2026
 
 test('public: only website-safe tools are offered to the model',()=>{
   const names=modelToolsFor(buildFullRegistry(),{role:'public',surface:'public'}).map(t=>t.function.name).sort();
-  assert.deepEqual(names,['check_availability','get_time','list_doctors','request_appointment','request_handoff','search_answers','show_form']);
+  assert.deepEqual(names,['check_availability','get_time','list_doctors','propose_cancellation','request_appointment','request_handoff','search_answers','show_form']);
 });
 
 test('public: cannot reach patient lookups, staff bookings or setup tools',async()=>{
@@ -668,7 +668,7 @@ const vctx=(over={})=>pctx({verifiedPhone:ME,...over});
 
 test('P5 self-service needs a verified phone',async()=>{
   const r=buildFullRegistry(),db=ssDb();
-  for(const [n,a] of [['my_appointments',{}],['cancel_my_appointment',{booking_id:MINE}],['reschedule_my_appointment',{booking_id:MINE,when:'2026-11-18T09:00'}]]){
+  for(const [n,a] of [['my_appointments',{}],['cancel_my_appointment',{booking_id:MINE,reason:'I have a work trip that day'}],['reschedule_my_appointment',{booking_id:MINE,when:'2026-11-18T09:00'}]]){
     const env=await executeTool(r,n,a,pctx(),db);assert.equal(env.error.code,'PERMISSION_DENIED',n);
   }
   assert.equal(db.updates.length,0);
@@ -678,9 +678,9 @@ test('P5 a verified patient sees and changes only their own appointments',async(
   const r=buildFullRegistry(),db=ssDb();
   const l=await executeTool(r,'my_appointments',{},vctx(),db);
   assert.deepEqual(l.data.appointments.map(b=>b.id),[MINE]);
-  const x=await executeTool(r,'cancel_my_appointment',{booking_id:THEIRS},vctx(),db);
+  const x=await executeTool(r,'cancel_my_appointment',{booking_id:THEIRS,reason:'I have a work trip that day'},vctx(),db);
   assert.equal(x.error.code,'ENTITY_NOT_FOUND');
-  const c=await executeTool(r,'cancel_my_appointment',{booking_id:MINE},vctx(),db);
+  const c=await executeTool(r,'cancel_my_appointment',{booking_id:MINE,reason:'I have a work trip that day'},vctx(),db);
   assert.equal(c.ok,true);assert.deepEqual(db.updates,[['status',MINE,'cancelled']]);
   assert.equal(db.audits.at(-1)[0],'patient.cancelled');
 });
@@ -803,4 +803,10 @@ test('V1 a reply stating an appointment fact without any tool call is sent back 
   // Ordinary replies are not re-checked, and a reply after tools ran is trusted.
   assert.equal(checkAppointmentClaim('Hi! Use the booking form to pick a time.'),'');
   assert.ok(checkAppointmentClaim('That time is already taken.'));
+});
+
+import {reasonProblem} from '../../supabase/functions/_shared/tools/reason.js';
+test('cancelling in chat needs a real reason',()=>{
+  for(const bad of ['','no','idk','cancel','asdf','ok ok','nothing'])assert.ok(reasonProblem(bad),JSON.stringify(bad));
+  for(const good of ['I have a work trip that day','Feeling better, no longer need it','Moving to another city'])assert.equal(reasonProblem(good),null,good);
 });

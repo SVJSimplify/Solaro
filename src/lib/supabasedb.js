@@ -35,7 +35,7 @@ const FROM={
   kb:r=>({id:r.id,title:r.title,body:r.body,keywords:r.keywords,starter:r.starter,managed:!!r.managed,created:ms(r.created_at)}),
   services:r=>({id:r.id,name:r.name,created:ms(r.created_at)}),
   doctors:r=>({id:r.id,name:r.name,specialty:r.specialty,services:r.services,days:r.days,start:hm(r.start_time),end:hm(r.end_time),slot:r.slot,created:ms(r.created_at)}),
-  bookings:r=>({id:r.id,name:r.name,phone:r.phone,service:r.service,when:r.starts_at.slice(0,16),doctor_id:r.doctor_id,doctor:r.doctor,status:r.status,reminded:r.reminded,duration:r.duration_min??30,source:r.source,conversation_id:r.conversation_id,requested_at:r.requested_at,decided_at:r.decided_at,created:ms(r.created_at)}),
+  bookings:r=>({id:r.id,name:r.name,phone:r.phone,service:r.service,when:r.starts_at.slice(0,16),doctor_id:r.doctor_id,doctor:r.doctor,status:r.status,reminded:r.reminded,duration:r.duration_min??30,source:r.source,conversation_id:r.conversation_id,requested_at:r.requested_at,decided_at:r.decided_at,cancelReason:r.cancel_reason||'',created:ms(r.created_at)}),
   closures:r=>({id:r.id,date:r.date,created:ms(r.created_at)}),
   alerts:r=>({id:r.id,convo:r.convo,customer:r.customer,reason:r.reason,text:r.text,read:r.read,created:ms(r.created_at)}),
   audit:r=>({id:r.id,action:r.action,detail:r.detail,at:ms(r.created_at)}),
@@ -198,6 +198,7 @@ export const remote={
   /* Counted in the database over the whole period, in the clinic's time zone. */
   async insights(_u,days){return must(await sb.rpc('insights_summary',{p_org:org,p_days:days}))},
   /* Runs in this browser with the local LLM provider; storage goes to Supabase. */
+  async closeConversation(id,close){must(await sb.rpc('conversation_close',{p_id:id,p_close:!!close}));ping('conversations')},
   async respond(id,_text,uid){await respondWith(remote,id,uid)}
 };
 

@@ -58,6 +58,7 @@ export const local=(()=>{
    async deleteLogs(uid,kind,{ids,from,to}={}){const s=st(),k={activity:'audit',messages:'outbox',handoffs:'alerts'}[kind],t=x=>x.at??x.created??0,before=s[k].length;
      s[k]=s[k].filter(x=>!((!ids||ids.includes(x.id))&&(!from||t(x)>=Date.parse(from))&&(!to||t(x)<Date.parse(to))&&(kind!=='messages'||['sent','failed'].includes(x.status))));S(s);return before-s[k].length},
    async removeInstall(){},
+   async closeConversation(id,close){const s=st(),c=s.convos.find(x=>x.id===id);if(c){c.status=close?'closed':'handoff';if(close)c.messages.push({r:'staff',t:'This conversation has been closed by the team. Start a new chat any time if you need us.',at:Date.now()})}S(s)},
    async saveSettings(uid,v){const s=st();s.settings[uid]={...s.settings[uid],...v};S(s)}
   }})();
 

@@ -9,6 +9,8 @@ import {devProviders} from './llm';
 export async function respondWith(store,id,uid){
   const [kb,cfg,convos,me]=await Promise.all([store.list('kb',uid),store.settings(uid),store.list('convos',uid),store.session()]);
   const cur=convos.find(x=>x.id===id);
+  // Once a chat is with the team (or ended), Solara does not reply in it again.
+  if(!cur||cur.status==='handoff'||cur.status==='closed')return;
   const messages=buildMessages(cur.messages.map(m=>({role:m.r,body:m.t})));
   const providers=devProviders();
   // Emergencies never go through the model.

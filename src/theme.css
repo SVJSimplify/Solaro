@@ -414,3 +414,12 @@ aside .tab.on{text-shadow:none}
 .caret{display:inline-block;width:2px;height:1em;margin-left:2px;vertical-align:-2px;background:currentColor;opacity:.5;animation:caret 1s steps(2) infinite}
 @keyframes caret{50%{opacity:0}}
 @media (prefers-reduced-motion:reduce){.caret{animation:none}}
+/* Bookings: past appointments recede; cancelled ones read as cancelled at a glance */
+.appt.past,.slot.booked.past,.tbl tr.row-past{opacity:.5}
+.appt.past:hover,.slot.booked.past:hover,.tbl tr.row-past:hover{opacity:.85}
+.appt.cancelled{background:#F4EFEA;border-left-color:#B8ADA2;opacity:.75}
+.appt.cancelled span{text-decoration:line-through;color:var(--gone)}
+.slot.booked.cancelled{background:#F4EFEA;color:var(--gone);text-decoration:line-through;border-color:#D9CFC4}
+.tbl tr.row-cancelled td{background:#F7F2ED;color:var(--gone)}
+.tbl tr.row-cancelled td:nth-child(2){text-decoration:line-through}
+.send-ended{padding:12px 16px;margin:0;border-top:1px solid var(--ln)}
