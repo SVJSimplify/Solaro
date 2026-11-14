@@ -52,6 +52,7 @@ export const local=(()=>{
    async widgetKeyRotate(){return crypto.randomUUID()},
    async widgetInstalls(){return []},
    async settings(uid){return st().settings[uid]||{}},
+   async saveHours(uid,h){const s=st();s.settings[uid]={...s.settings[uid],hours:h};s.doctors=s.doctors.map(d=>({...d,days:d.days.filter(x=>h.days.includes(x)),start:d.start<h.start?h.start:d.start,end:d.end>h.end?h.end:d.end}));S(s)},
    async saveSettings(uid,v){const s=st();s.settings[uid]={...s.settings[uid],...v};S(s)}
   }})();
 

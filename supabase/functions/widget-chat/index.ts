@@ -158,6 +158,8 @@ Deno.serve(async req=>{
     const env=await executeTool(registry,'request_appointment',args,ctx({}),db);
     if(!env.ok)return J({error:env.error.message,field:env.error.field??null,alternatives:env.error.alternatives??[]},409);
     const r=env.data;
+    // The inbox shows who this is from now on, not "Website visitor".
+    await svc.from('conversations').update({customer:`${args.name.trim()} · ${r.phone??args.phone}`.slice(0,120)}).eq('id',cid);
     if(!env.meta?.replayed){
       await say('cust',`Requested ${args.service} on ${nice(r.when)}.`);
       await say('bot',r.status==='booked'
@@ -185,7 +187,7 @@ Deno.serve(async req=>{
     const pv:any=await orgProvider(svc,orgId);
     const {data:hist}=await svc.from('messages').select('role,body').eq('org_id',orgId).eq('conversation_id',cid).order('created_at',{ascending:false}).limit(30);
     const messages=buildMessages((hist??[]).reverse());
-    if(pv.error){reply=FALLBACK;out.handoff=true;out.reason='error'}
+    if(pv.error){logEvent('widget-chat',{org:orgId,action:'message',outcome:'provider_unavailable',error:pv.error});reply=FALLBACK;out.handoff=true;out.reason='error'}
     else{
       const [st,org]=await Promise.all([svc.from('settings').select('tone,greeting').eq('org_id',orgId).maybeSingle(),svc.from('organizations').select('name').eq('id',orgId).single()]);
       try{
@@ -210,9 +212,10 @@ Deno.serve(async req=>{
 
   await say('bot',reply);
   if(out.handoff){
-    await svc.from('conversations').update({status:'handoff'}).eq('id',cid);
+    // A temporary AI failure alerts the team but does not silence the chat: the next message gets a real answer again.
+    if(out.reason!=='error')await svc.from('conversations').update({status:'handoff'}).eq('id',cid);
     const reason=REASONS.includes(out.reason)?out.reason:'other';
     await svc.from('alerts').insert({org_id:orgId,convo:cid,customer:convo.customer,reason,text:text.slice(0,160)});
   }
-  return J({reply,handoff:out.handoff,status:out.handoff?'handoff':'handled',form:out.form?cleanForm(out.form):null,manage:!!out.manage&&smsReady(),urgent});
+  return J({reply,handoff:out.handoff,status:out.handoff&&out.reason!=='error'?'handoff':'handled',form:out.form?cleanForm(out.form):null,manage:!!out.manage&&smsReady(),urgent});
 });

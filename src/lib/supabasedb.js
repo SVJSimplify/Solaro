@@ -59,7 +59,7 @@ async function enter(user){
   if(!me){org=null;return{...base,needsOrg:true}}
   org=me.org_id;
   await seed();
-  const tables=['conversations','messages','bookings','kb','doctors','closures','alerts','services','audit_events','outbox','schedule_exceptions'];
+  const tables=['conversations','messages','bookings','kb','doctors','closures','alerts','services','audit_events','outbox','schedule_exceptions','settings'];
   chans=tables.map(t=>sb.channel('rt-'+t).on('postgres_changes',{event:'*',schema:'public',table:t,filter:'org_id=eq.'+org},()=>ping(t)).subscribe());
   const {data:pa}=await sb.rpc('is_platform_admin');
   return{...base,biz:me.organizations.name,org,tz:me.organizations.timezone||null,role:me.role,platformAdmin:!!pa};
@@ -159,7 +159,9 @@ export const remote={
   async widgetKey(){return must(await sb.rpc('widget_key_get',{p_org:org}))},
   async widgetKeyRotate(){const k=must(await sb.rpc('widget_key_rotate',{p_org:org}));return k},
   async widgetInstalls(){const r=await sb.from('widget_installs').select('origin,first_seen,last_seen').eq('org_id',org).order('last_seen',{ascending:false});return r.error?null:r.data},
-  async settings(){const d=must(await sb.from('settings').select('*').eq('org_id',org).maybeSingle());return d?{greeting:d.greeting,tone:d.tone,handoff:d.handoff_phone,autoConfirm:!!d.auto_confirm_web}:{}},
+  async settings(){const d=must(await sb.from('settings').select('*').eq('org_id',org).maybeSingle());return d?{greeting:d.greeting,tone:d.tone,handoff:d.handoff_phone,autoConfirm:!!d.auto_confirm_web,hours:{days:d.open_days??[1,2,3,4,5],start:d.open_start??'08:00',end:d.open_end??'17:00'}}:{}},
+  /* Clinic hours. The database keeps every doctor inside them and updates doctors when they change. */
+  async saveHours(_u,h){must(await sb.from('settings').upsert({org_id:org,open_days:h.days,open_start:h.start,open_end:h.end}));ping('doctors');ping('settings')},
   async saveSettings(_u,v){must(await sb.from('settings').upsert({org_id:org,greeting:v.greeting,tone:v.tone,handoff_phone:v.handoff,...('autoConfirm' in v?{auto_confirm_web:!!v.autoConfirm}:{})}));ping()},
   /* Appointment actions. Each is one transaction on the server: the change, the audit record and the patient's message. */
   async bookingCreate(_u,r){const x=must(await sb.rpc('booking_create',{p_org:org,p_name:r.name,p_phone:r.phone,p_service:r.service||'',p_when:r.when,p_doctor:r.doctor_id}));ping('bookings');return x},
