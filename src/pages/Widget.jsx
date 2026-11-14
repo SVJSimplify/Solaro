@@ -2,6 +2,7 @@
 import {useEffect,useRef,useState} from 'react';
 import '../widget.css';
 import {Field,PhoneField,problem,phoneProblem} from '../lib/fields';
+import TimeClock from '../lib/TimeClock';
 
 const URL=import.meta.env.VITE_SUPABASE_URL,ANON=import.meta.env.VITE_SUPABASE_ANON_KEY;
 const headers={apikey:ANON,Authorization:'Bearer '+ANON,'Content-Type':'application/json'};
@@ -14,8 +15,6 @@ async function call(path,body){
 }
 
 const isBooking=f=>['name','phone','service','when'].every(n=>f?.fields?.some(x=>x.name===n));
-/* Slots arrive as 24h "HH:MM"; show US-friendly 12h labels without changing the submitted value. */
-const t12=t=>{const [h,m]=t.split(':').map(Number);return `${h%12||12}:${String(m).padStart(2,'0')} ${h<12?'AM':'PM'}`};
 const initials=n=>(n||'C').trim().split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase();
 const localToday=()=>{const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,10)};
 
@@ -53,9 +52,9 @@ function BookingPicker({form,chat,onDone,onCancel}){
       <PhoneField id="bk-phone" label={form.fields.find(f=>f.name==='phone')?.label||'Phone'} value={v.phone} onChange={x=>setV(o=>({...o,phone:x}))} autoComplete="tel"/>
       {services.length>0&&<div className="f"><label htmlFor="bk-svc">Service *</label><select id="bk-svc" value={v.service} onChange={set('service')}>{services.map(o=><option key={o}>{o}</option>)}</select></div>}
       <div className="f"><label htmlFor="bk-date">Day *</label><input id="bk-date" type="date" min={localToday()} value={v.date} onChange={set('date')} required/></div>
-      <fieldset className="wg-slots"><legend>Open times</legend>
+      <fieldset className="wg-slots wg-clock"><legend>Preferred time</legend>
         {slots===null&&!note&&<p className="wg-note">Checking open times…</p>}
-        {slots?.length>0&&slots.map(t=><button type="button" key={t} className={'wg-slot'+(v.time===t?' on':'')} aria-pressed={v.time===t} onClick={()=>setV(o=>({...o,time:t}))}>{t12(t)}</button>)}
+        {slots?.length>0&&<TimeClock slots={slots} value={v.time} label="Preferred time" onChange={t=>setV(o=>({...o,time:t}))}/>}
         {(slots?.length===0||note)&&<p className="wg-note">{note||'No open times that day. Try another day.'}</p>}
       </fieldset>
       {err&&<p className="wg-err" role="alert">{err}</p>}
@@ -105,9 +104,9 @@ function ManagePanel({chat,onClose,onChanged}){
       {moving&&<div>
         <p className="wg-note">Moving {moving.service} from {nice(moving.when)}</p>
         <div className="f"><label htmlFor="mg-date">New day</label><input id="mg-date" type="date" min={localToday()} value={date} onChange={e=>{setDate(e.target.value);setTime('')}}/></div>
-        <fieldset className="wg-slots"><legend>Open times</legend>
+        <fieldset className="wg-slots wg-clock"><legend>New time</legend>
           {slots===null&&<p className="wg-note">Checking open times…</p>}
-          {slots?.map(t=><button type="button" key={t} className={'wg-slot'+(time===t?' on':'')} aria-pressed={time===t} onClick={()=>setTime(t)}>{t12(t)}</button>)}
+          {slots?.length>0&&<TimeClock slots={slots} value={time} label="New time" onChange={setTime}/>}
           {slots?.length===0&&<p className="wg-note">No open times that day. Try another day.</p>}
         </fieldset>
         <div className="acts">

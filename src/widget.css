@@ -69,3 +69,5 @@
 
 @media (prefers-reduced-motion:reduce){.wg *{animation:none!important;transition:none!important}.wg-log{scroll-behavior:auto}}
 @media (max-width:519px){.wg--embed .wg-head{padding-right:68px}}
+.wg-slots.wg-clock{display:block}
+.wg-clock .tc{margin-top:4px}
