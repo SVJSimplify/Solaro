@@ -255,12 +255,20 @@ a.tile{transition:border-color .15s}a.tile:hover{border-color:var(--coral6)}
 .row[aria-current=true] small{color:var(--plum)}.row.urgent{border-left:0;box-shadow:inset 4px 0 0 var(--bad)}
 .row b{font-weight:600;align-items:center}
 .thread{padding:0;overflow:hidden}.thread>header{padding:14px 18px}.thread>header .why{font-size:.86rem}
-.msgs{background:#211A18;padding:18px;gap:10px}
-.m{max-width:min(78%,560px);padding:9px 14px;border-radius:14px 14px 14px 4px;font-size:.92rem;line-height:1.45;border:1px solid var(--ln)}
-.m small{opacity:.75;font-size:.7rem;margin-bottom:2px}
-.m.bot{background:var(--sf);color:var(--tx);border:1px solid var(--ln);border-left:3px solid var(--coral);border-radius:14px 14px 4px 14px}
-.m.staff{background:var(--amber1);color:var(--tx);border-color:#F2D79A;border-radius:14px 14px 4px 14px}
-.m.typing{border-left:3px solid var(--coral)}
+/* Conversation thread (inbox + test chats). Clinic-side view: patient on the left, Solara and the team on the right.
+   Same visual language as the patient widget: white patient bubbles, coral Solara, deep-teal team. */
+.msgs{background:var(--sf2);padding:20px;gap:6px}
+.m{max-width:min(76%,560px);padding:9px 14px;border-radius:18px 18px 18px 6px;font-size:.93rem;line-height:1.45;border:0;
+  background:var(--sf);color:var(--tx);box-shadow:0 0 0 1px var(--ln),0 1px 2px rgba(24,63,61,.06);margin-top:6px}
+.m small{display:block;opacity:1;font-size:.7rem;font-weight:600;letter-spacing:.01em;margin-bottom:2px;color:var(--mu)}
+.m.bot{align-self:flex-end;background:var(--coral6);color:#fff;box-shadow:none;border-radius:18px 18px 6px 18px}
+.m.bot small{color:rgba(255,255,255,.82)}
+.m.staff{align-self:flex-end;background:var(--plum);color:var(--cream);box-shadow:none;border-radius:18px 18px 6px 18px}
+.m.staff small{color:rgba(255,246,229,.75)}
+.m.typing{display:flex;gap:4px;width:auto;padding:13px 16px;background:#F7D6D2;box-shadow:none}
+.m.typing i{width:6px;height:6px;background:var(--coral6);opacity:.45}
+.thread .send{background:var(--sf);border-top:1px solid var(--ln)}
+.thread .send .btn:disabled{background:#E7DED2;border-color:#E7DED2;color:#7D8B89;opacity:1;cursor:not-allowed}
 .send{align-items:center;flex-wrap:wrap;padding:12px 14px}.send input{flex:1 1 220px}
 .alerts{padding:6px 22px}
 .alert-row{display:grid;gap:6px;padding:16px 0;border-bottom:1px solid var(--ln)}.alert-row:last-child{border-bottom:0}
