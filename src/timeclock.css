@@ -10,7 +10,7 @@
 .tc-half button[aria-pressed=true]{background:var(--sf,#fff);color:var(--tx,#183F3D);box-shadow:0 1px 3px rgba(24,63,61,.16)}
 .tc-half button:disabled{opacity:.35;cursor:default}
 .tc-dial{width:100%;max-width:232px;aspect-ratio:1;touch-action:none;cursor:pointer;border-radius:50%;user-select:none;-webkit-user-select:none}
-.tc-dial:focus-visible{outline:none}.tc-dial:focus-visible .tc-face{stroke:var(--amber,#F7B32B);stroke-width:4}
+.tc-dial:focus{outline:none}.tc-dial:focus-visible{outline:none}.tc-dial:focus-visible .tc-face{stroke:var(--amber,#F7B32B);stroke-width:4}
 .tc-face{fill:var(--sf2,#FFF6E5);stroke:var(--ln,#F0E4D2);stroke-width:1.5}
 .tc-num{font:500 12px var(--fd,sans-serif);fill:var(--mu,#5E7472);pointer-events:none}
 .tc-slot{fill:var(--coral,#F25C54);opacity:.55;transition:r .15s ease,opacity .15s ease}
@@ -20,3 +20,4 @@
 .tc-hint,.tc-empty{margin:0;font-size:.8rem;color:var(--mu,#5E7472);text-align:center}
 .tc-off{opacity:.6;pointer-events:none}
 @media (prefers-reduced-motion:reduce){.tc-slot{transition:none}}
+.tc-slot.shut{fill:none;stroke:var(--mu,#5E7472);stroke-width:1.5;opacity:.45}
