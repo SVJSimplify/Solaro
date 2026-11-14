@@ -8,7 +8,7 @@ import {publicAdapter} from '../_shared/tools/supabaseAdapter.js';
 import {bookingForm,wantsBooking,wantsManage} from '../_shared/tools/front.js';
 import {normalizePhone,countryForTimeZone} from '../_shared/tools/phone.js';
 import {logEvent,allow} from '../_shared/ops.js';
-import {publicSystem} from '../_shared/tools/prompt.js';
+import {publicSystem,checkAppointmentClaim} from '../_shared/tools/prompt.js';
 import {buildMessages,triage,cleanForm,hasHealthSignal,REASONS,FALLBACK,callModelRaw} from '../_shared/agent.js';
 
 const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type'};
@@ -192,9 +192,9 @@ Deno.serve(async req=>{
         const res:any=await withTimeout(runToolLoop({
           callModel:(m:any,tools:any)=>callModelRaw({...pv.provider,maxTokens:1200,reasoningEffort:'none',onAttempt:(a:any)=>attempts.push(a)},m,tools),
           registry,db,role:'public',surface:'public',ctx:ctx(out),
-          system:publicSystem({org:org.data?.name??'this clinic',tone:st.data?.tone??'friendly',greeting:st.data?.greeting??'',timeZone}),messages}),40000);
+          system:publicSystem({org:org.data?.name??'this clinic',tone:st.data?.tone??'friendly',greeting:st.data?.greeting??'',timeZone}),messages,checkClaim:checkAppointmentClaim}),40000);
         reply=res.reply;
-        logEvent('widget-chat',{org:orgId,action:'message',outcome:res.stopped??'ok',ms:Date.now()-t0,tools:res.calls.map((c:any)=>c.ok?c.name:c.name+':'+c.code),attempts});
+        logEvent('widget-chat',{org:orgId,action:'message',outcome:res.stopped??'ok',rechecked:!!res.rechecked,ms:Date.now()-t0,tools:res.calls.map((c:any)=>c.ok?c.name:c.name+':'+c.code),attempts});
       }catch(e){logEvent('widget-chat',{org:orgId,action:'message',outcome:'model_failed',ms:Date.now()-t0,attempts,error:String(e).slice(0,200)});reply=FALLBACK;out.handoff=true;out.reason='error'}
     }
     // A health_risk label must be backed by the visitor's own words.

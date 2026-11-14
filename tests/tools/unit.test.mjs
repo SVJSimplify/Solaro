@@ -789,3 +789,18 @@ test('R4 availability reads one day of bookings, never the whole history',async(
   await executeTool(buildFullRegistry(),'check_availability',{date:'2026-11-17'},pctx(),db);
   assert.equal(seen.length,1);assert.deepEqual(seen[0],{from:'2026-11-17',to:'2026-11-18'});
 });
+
+test('V1 a reply stating an appointment fact without any tool call is sent back once to verify', async()=>{
+  const {runToolLoop}=await import('../../supabase/functions/_shared/tools/loop.js');
+  const {checkAppointmentClaim}=await import('../../supabase/functions/_shared/tools/prompt.js');
+  const replies=[{content:'Sorry, 10:30 is no longer available, so you are not booked.'},
+    {content:null,tool_calls:[{id:'t1',function:{name:'get_time',arguments:'{}'}}]},
+    {content:'You are booked for 10:30 on Nov 19.'}];
+  let seen=[];const callModel=async m=>{seen.push(m.at(-1));return replies.shift()};
+  const r=await runToolLoop({callModel,registry:buildFullRegistry(),db:frontDb(),ctx:{orgId:ORG,timeZone:'Asia/Kolkata',localNow:'2026-11-13T10:00',requestId:'v1',out:{}},role:'public',surface:'public',system:'s',messages:[{role:'user',content:'Hello?'}],checkClaim:checkAppointmentClaim});
+  assert.equal(r.reply,'You are booked for 10:30 on Nov 19.');assert.equal(r.rechecked,true);
+  assert.match(seen[1].content,/Verify it now/);
+  // Ordinary replies are not re-checked, and a reply after tools ran is trusted.
+  assert.equal(checkAppointmentClaim('Hi! Use the booking form to pick a time.'),'');
+  assert.ok(checkAppointmentClaim('That time is already taken.'));
+});
