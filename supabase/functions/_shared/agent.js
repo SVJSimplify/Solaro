@@ -94,8 +94,10 @@ export const validBooking=b=>!!b&&WHEN.test(b.when||'')&&!isNaN(Date.parse(b.whe
 
 /* OpenAI-compatible chat call. Works for Groq, OpenRouter, and a local server. */
 export async function callModel(p,system,messages){
+  // Through the llm-proxy the browser sends the signed-in session (p.auth), not a model key.
+  const headers={'Content-Type':'application/json',...(p.key?{Authorization:'Bearer '+p.key}:{}),...(p.auth?await p.auth():{})};
   const r=await fetch(p.endpoint.replace(/\/+$/,'')+'/chat/completions',{method:'POST',
-    headers:{'Content-Type':'application/json',...(p.key?{Authorization:'Bearer '+p.key}:{})},
+    headers,
     body:JSON.stringify({model:p.model,max_completion_tokens:p.maxTokens??2000,...(p.jsonMode?{response_format:{type:'json_object'}}:{}),messages:[{role:'system',content:system},...messages]})});
   if(!r.ok){const t=await r.text().catch(()=>'');throw new Error('Model error '+r.status+': '+t.slice(0,300))}
   const j=await r.json(),c=j.choices?.[0];
