@@ -1,13 +1,13 @@
-/* Solara website chat. Add to any page: <script src="https://YOUR-SOLARA-APP/embed.js" data-org="CLINIC-ID" async></script>
+/* Solara website chat. Add to any page: <script src="https://YOUR-SOLARA-APP/embed.js" data-key="WIDGET-KEY" async></script>
    Optional: data-label="Book or ask a question", data-color="#C9413A", data-position="left". Adds one button and one iframe. */
 (function(){
   var s=document.currentScript;if(!s||window.__solaraChat)return;
-  var org=s.getAttribute('data-org');if(!org||!/^[0-9a-f-]{36}$/i.test(org))return;
+  var key=s.getAttribute('data-key');if(!key||!/^[0-9a-f-]{36}$/i.test(key))return;
   window.__solaraChat=true;
   // Tell the clinic's dashboard this site has the chat installed (public key; fire-and-forget).
   try{fetch('https://wqhxpfzbvtkdwzehddjr.supabase.co/rest/v1/rpc/widget_ping',{method:'POST',keepalive:true,
     headers:{'Content-Type':'application/json',apikey:'sb_publishable_mgqlYnRfwa91pfm52GRsNw_HVFu0wUP'},
-    body:JSON.stringify({org:org,origin:location.origin})}).catch(function(){})}catch(e){}
+    body:JSON.stringify({key:key,origin:location.origin})}).catch(function(){})}catch(e){}
   var base=new URL(s.src,location.href).origin,color=s.getAttribute('data-color')||'#D96F54',label=s.getAttribute('data-label')||'Chat with us';
   // Readable label on any button colour: dark text on light colours, white on dark ones.
   var ink=(function(h){var m=/^#?([0-9a-f]{6})$/i.exec(h);if(!m)return'#fff';var n=parseInt(m[1],16),l=(0.299*(n>>16)+0.587*(n>>8&255)+0.114*(n&255))/255;return l>0.5?'#1A1210':'#fff'})(color);
@@ -34,7 +34,7 @@
       (open?';opacity:1;transform:none':';opacity:0;transform:translateY(12px) scale(.98);pointer-events:none;visibility:hidden')}
   btn.onclick=function(){
     if(!frame){frame=document.createElement('iframe');frame.id='solara-chat-frame';frame.title='Chat with the clinic';
-      frame.src=base+'/widget?org='+encodeURIComponent(org);frame.setAttribute('allow','clipboard-write');size();document.body.appendChild(frame);frame.getBoundingClientRect()}
+      frame.src=base+'/widget?key='+encodeURIComponent(key);frame.setAttribute('allow','clipboard-write');size();document.body.appendChild(frame);frame.getBoundingClientRect()}
     open=!open;btn.setAttribute('aria-expanded',String(open));paint();size();
     if(open&&window.innerWidth<520){btn.style.bottom='auto';btn.style.top='10px';btn.style.height='44px';btn.style.width='44px';btn.style.boxShadow='none'}
     else{btn.style.top='auto';btn.style.bottom='20px';btn.style.height='56px';btn.style.boxShadow='0 10px 28px -8px rgba(60,20,15,.45),0 2px 6px rgba(60,20,15,.18)';if(!open)btn.style.width='auto'}

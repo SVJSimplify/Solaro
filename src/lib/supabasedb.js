@@ -156,6 +156,8 @@ export const remote={
   /* A team message into one chat. The website chat shows it to the visitor on its next poll. */
   async postMessage(convoId,text){must(await sb.from('messages').insert({org_id:org,conversation_id:convoId,role:'staff',body:text}));ping()},
   // Sites where this clinic's website chat has loaded (null if install tracking isn't set up on the server yet).
+  async widgetKey(){return must(await sb.rpc('widget_key_get',{p_org:org}))},
+  async widgetKeyRotate(){const k=must(await sb.rpc('widget_key_rotate',{p_org:org}));return k},
   async widgetInstalls(){const r=await sb.from('widget_installs').select('origin,first_seen,last_seen').eq('org_id',org).order('last_seen',{ascending:false});return r.error?null:r.data},
   async settings(){const d=must(await sb.from('settings').select('*').eq('org_id',org).maybeSingle());return d?{greeting:d.greeting,tone:d.tone,handoff:d.handoff_phone,autoConfirm:!!d.auto_confirm_web}:{}},
   async saveSettings(_u,v){must(await sb.from('settings').upsert({org_id:org,greeting:v.greeting,tone:v.tone,handoff_phone:v.handoff,...('autoConfirm' in v?{auto_confirm_web:!!v.autoConfirm}:{})}));ping()},

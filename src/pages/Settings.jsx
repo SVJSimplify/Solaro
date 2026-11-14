@@ -7,8 +7,6 @@ export default function Settings(){
   useEffect(()=>{db.settings(user.id).then(v=>setS(o=>({...o,...v}))).catch(x=>setErr(x.message))},[user.id]);
   const set=k=>e=>setS({...s,[k]:e.target.value}),put=k=>v=>setS({...s,[k]:v});
   const [svc]=useTable('services'),[nm,setNm]=useState('');
-  const scriptCode=`<script src="${location.origin}/embed.js" data-org="${me.org}" async></script>`;
-  const embedCode=`<iframe src="${location.origin}/widget?org=${me.org}" title="Chat with ${me.biz}" width="360" height="560" style="border:0;max-width:100%" loading="lazy"></iframe>`;
   const addSvc=async e=>{e.preventDefault();const n=nm.trim();if(problem('service',n))return toast(problem('service',n,{label:'Service name'}));if(svc.some(x=>x.name.toLowerCase()===n.toLowerCase()))return toast('That service is already on the list.');await db.add('services',user.id,{name:n});setNm('')};
   const save=async e=>{
     e.preventDefault();setErr('');

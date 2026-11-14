@@ -16,18 +16,20 @@ const ago=t=>{const m=Math.round((Date.now()-Date.parse(t))/6e4);return m<2?'jus
 
 export default function Install(){
   const {user:me}=useAuth(),toast=useToast();
-  const [label,setLabel]=useState('Chat with us'),[color,setColor]=useState('#C9413A'),[side,setSide]=useState('right');
-  const [pf,setPf]=useState('html'),[sites,setSites]=useState(undefined),[checking,setChecking]=useState(false);
+  const [label,setLabel]=useState('Chat with us'),[color,setColor]=useState('#D96F54'),[side,setSide]=useState('right');
+  const [wkey,setWkey]=useState(null),[pf,setPf]=useState('html'),[sites,setSites]=useState(undefined),[checking,setChecking]=useState(false);
   const code=useMemo(()=>{
-    const a=[`src="${location.origin}/embed.js"`,`data-org="${me.org}"`];
+    const a=[`src="${location.origin}/embed.js"`,`data-key="${wkey}"`];
     const l=label.trim().replace(/["<>&]/g,'');
     if(l&&l!=='Chat with us')a.push(`data-label="${l}"`);
-    if(color.toLowerCase()!=='#c9413a')a.push(`data-color="${color}"`);
+    if(color.toLowerCase()!=='#d96f54')a.push(`data-color="${color}"`);
     if(side==='left')a.push('data-position="left"');
     return `<script ${a.join(' ')} async></script>`;
-  },[label,color,side,me.org]);
+  },[label,color,side,wkey]);
   const check=async()=>{setChecking(true);try{setSites(await db.widgetInstalls())}finally{setChecking(false)}};
-  useEffect(()=>{check()},[]);// eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(()=>{check();setWkey(null);db.widgetKey().then(setWkey).catch(()=>toast('Could not load your website key'))},[me.org]);// eslint-disable-line react-hooks/exhaustive-deps
+  const rotate=async()=>{if(!confirm('Make a new key? The chat stops working on any website still using the old code until you paste the new one.'))return;
+    try{setWkey(await db.widgetKeyRotate());toast('New key made. Paste the new code on your website.')}catch(e){toast(e.message)}};
   const copy=()=>{navigator.clipboard?.writeText(code);toast('Code copied')};
 
   if(!['owner','admin'].includes(me.role))return<><header><h1>Website chat</h1></header><p className="route">Ask an owner or admin to add the chat to your website.</p></>;
@@ -42,14 +44,15 @@ export default function Install(){
           <div className="f"><label htmlFor="ip">Position</label><select id="ip" value={side} onChange={e=>setSide(e.target.value)}><option value="right">Bottom right</option><option value="left">Bottom left</option></select></div>
         </div>
         <div className="inst-prev" aria-hidden="true"><span className="inst-btn" style={{background:color,[side]:16}}>💬 {label.trim()||'Chat with us'}</span></div>
-        <a className="btn ghost sm" href={`/widget?org=${me.org}`} target="_blank" rel="noopener">Open the chat to try it</a>
+        <a className="btn ghost sm" href={`/widget?key=${wkey}`} target="_blank" rel="noopener">Open the chat to try it</a>
       </section>
 
       <section className="card st">
         <h3><span className="inst-n">2</span>Copy your code</h3>
-        <textarea readOnly rows={3} aria-label="Website chat code" value={code} onFocus={e=>e.target.select()}/>
-        <button type="button" className="btn" onClick={copy}>Copy code</button>
-        <p className="route">One line. It loads after your page, so it won't slow your site down.</p>
+        <textarea readOnly rows={3} aria-label="Website chat code" value={wkey?code:'Loading your code…'} onFocus={e=>e.target.select()}/>
+        <button type="button" className="btn" onClick={copy} disabled={!wkey}>Copy code</button>
+        <p className="route">One line. It loads after your page, so it won't slow your site down. The key in it is unique to {me.biz||'your clinic'}: every chat and booking from your website lands in this dashboard.</p>
+        <p className="route">Key leaked or copied somewhere it shouldn't be? <button type="button" className="linkbtn" onClick={rotate} disabled={!wkey}>Make a new key</button></p>
       </section>
 
       <section className="card st">

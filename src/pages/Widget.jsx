@@ -144,7 +144,7 @@ function ManagePanel({chat,onClose,onChanged}){
 }
 
 export default function Widget(){
-  const org=new URLSearchParams(location.search).get('org');
+  const org=new URLSearchParams(location.search).get('key');
   const [chat,setChat]=useState(null),[msgs,setMsgs]=useState([]),[text,setText]=useState(''),[busy,setBusy]=useState(false);
   const [err,setErr]=useState(''),[form,setForm]=useState(null),[values,setValues]=useState({}),[name,setName]=useState('Clinic');
   const [greeting,setGreeting]=useState('Hi! How can I help you today?'),[status,setStatus]=useState('handled'),[manage,setManage]=useState(false);
@@ -165,13 +165,13 @@ export default function Widget(){
       try{
         let c=saved;
         if(!c){
-          const [row]=await call('/rest/v1/rpc/widget_start',{org});
+          const [row]=await call('/rest/v1/rpc/widget_start',{key:org});
           c={conversation_id:row.conversation_id,token:row.token};
           localStorage.setItem(key,JSON.stringify(c));
           setName(row.org_name);setGreeting(row.greeting);
         }else{
           // Read-only lookup: resuming a chat must not create a new one.
-          const [o]=await fetch(URL+'/rest/v1/rpc/widget_info',{method:'POST',headers,body:JSON.stringify({org})}).then(r=>r.ok?r.json():[{}]).catch(()=>[{}]);
+          const [o]=await fetch(URL+'/rest/v1/rpc/widget_info',{method:'POST',headers,body:JSON.stringify({key:org})}).then(r=>r.ok?r.json():[{}]).catch(()=>[{}]);
           if(o?.org_name){setName(o.org_name);setGreeting(o.greeting)}
         }
         setChat(c);
