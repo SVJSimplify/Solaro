@@ -1,0 +1,17 @@
+# Used by the Supabase CLI (and the deploy workflow). Login checks per function:
+project_id = "solaro"
+
+[functions.widget-chat]
+verify_jwt = false
+
+[functions.outbox-dispatch]
+verify_jwt = false
+
+[functions.staff-agent]
+verify_jwt = true
+
+[functions.llm-proxy]
+verify_jwt = true
+
+[functions.assistant]
+verify_jwt = true
