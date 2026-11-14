@@ -46,6 +46,10 @@ const loadAll=async(c,db,{date,bookings:want=true}={})=>{
   const closed=[...new Set([...closures.map(x=>x.date),...ex.filter(e=>e.kind==='closure'&&!e.doctor_id&&e.start_min==null).map(e=>e.on_date)])];
   return{doctors,bookings,services:services.map(s=>s.name),closed,ex};
 };
+/* The same patient already holds this exact time (e.g. booked in an earlier turn). Asking again must report that
+   booking, not "taken": the slot is taken by them. Matches on phone digits, so formatting differences don't matter. */
+const phoneTail=p=>String(p||'').replace(/\D/g,'').slice(-10);
+const alreadyHeld=(bookings,a)=>bookings.find(b=>b.status!=='cancelled'&&b.when===a.when&&phoneTail(b.phone)&&phoneTail(b.phone)===phoneTail(a.phone));
 const openSlots=(doctors,bookings,day,service,now,limit,ex=[])=>{
   const out=[];
   for(const d of doctors.filter(x=>!service||x.services.includes(service)))
@@ -118,12 +122,14 @@ export const bookAppointment=def({name:'book_appointment',patientData:'contact',
   input:{type:'object',additionalProperties:false,required:['name','phone','service','when'],properties:{
     name:{type:'string',minLength:1,maxLength:120},phone:{type:'string',minLength:3,maxLength:40},service:{type:'string',minLength:1,maxLength:80},when:WHEN,
     idempotency_key:{type:'string',minLength:8,maxLength:128}}},
-  output:{type:'object',required:['doctor','when'],properties:{doctor:{type:'string'},when:{type:'string'},booking_id:{type:'string'}}},
+  output:{type:'object',required:['doctor','when'],properties:{doctor:{type:'string'},when:{type:'string'},booking_id:{type:'string'},already:{type:'boolean'}}},
   errors:['INVALID_ARGUMENT','PRECONDITION_FAILED','RESOURCE_CONFLICT','PERMISSION_DENIED','UNAVAILABLE'],
   normalise:bookingNormalise,
   preconditions:bookingPreconditions,
   run:async(a,c,db)=>{
     const {doctors,bookings,ex}=await loadAll(c,db,{date:dateOf(a.when)});
+    const held=alreadyHeld(bookings,a);
+    if(held){if(c.out)c.out.booked=held.status==='booked';return{doctor:held.doctor||'',when:a.when.replace('T',' '),booking_id:String(held.id??''),already:true}}
     const doc=assignDoctor(freeDoctors(doctors,a.when,ex),bookings,a.when,a.service);
     if(!doc)throw slotTaken(doctors,bookings,a,c,ex);
     const row=await db.legacy.addBooking(c.orgId,{name:a.name,phone:a.phone,service:a.service,when:a.when,doctor_id:doc.id,doctor:doc.name,status:'booked',source:'assistant'});
@@ -139,12 +145,15 @@ export const requestAppointment=def({name:'request_appointment',public:true,pati
   input:{type:'object',additionalProperties:false,required:['name','phone','service','when'],properties:{
     name:{type:'string',minLength:1,maxLength:120},phone:{type:'string',minLength:3,maxLength:40},service:{type:'string',minLength:1,maxLength:80},when:WHEN,
     idempotency_key:{type:'string',minLength:8,maxLength:128}}},
-  output:{type:'object',required:['status','doctor','when'],properties:{status:{type:'string',enum:['requested','booked']},doctor:{type:'string'},when:{type:'string'},booking_id:{type:'string'}}},
+  output:{type:'object',required:['status','doctor','when'],properties:{status:{type:'string',enum:['requested','booked']},doctor:{type:'string'},when:{type:'string'},booking_id:{type:'string'},already:{type:'boolean'}}},
   errors:['INVALID_ARGUMENT','MISSING_INFORMATION','PRECONDITION_FAILED','RESOURCE_CONFLICT','PERMISSION_DENIED','UNAVAILABLE'],
   normalise:bookingNormalise,
   preconditions:bookingPreconditions,
   run:async(a,c,db)=>{
     const {doctors,bookings,ex}=await loadAll(c,db,{date:dateOf(a.when)});
+    const held=alreadyHeld(bookings,a);
+    if(held){const st=held.status==='booked'?'booked':'requested';if(c.out){c.out.booked=st==='booked';c.out.requested=st==='requested'}
+      return{status:st,doctor:held.doctor||'',when:a.when.replace('T',' '),booking_id:String(held.id??''),already:true}}
     const doc=assignDoctor(freeDoctors(doctors,a.when,ex),bookings,a.when,a.service);
     if(!doc)throw slotTaken(doctors,bookings,a,c,ex);
     const status=(await db.bookingPolicy?.(c.orgId))?.autoConfirm?'booked':'requested';

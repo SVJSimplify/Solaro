@@ -508,6 +508,14 @@ test('F2 the same booking request is replayed, never doubled', async()=>{
   const b=await front(db,'book_appointment',{name:'Asha',phone:'9876543210',service:'Cleaning',when:SLOT});
   assert.equal(b.meta.replayed,true);assert.equal(db.store.bookings.length,1);assert.equal(a.data.booking_id,b.data.booking_id);
 });
+test('F2b a later turn asking for the time the patient already holds reports their booking, not "taken"', async()=>{
+  const db=frontDb();
+  db.store.bookings.push({id:'mine',phone:'+919876543210',when:SLOT,doctor_id:DR1,doctor:'Dr. Rao',status:'booked'});
+  const r=await executeTool(full,'book_appointment',{name:'Asha',phone:'98765 43210',service:'Cleaning',when:SLOT},ctx({surface:'front',timeZone:'Asia/Kolkata',localNow:'2026-11-13T10:00',requestId:'turn-2'}),db);
+  assert.equal(r.ok,true,JSON.stringify(r));assert.equal(r.data.already,true);assert.equal(r.data.booking_id,'mine');assert.equal(db.store.bookings.length,1);
+  const q=await executeTool(buildFullRegistry(),'request_appointment',{name:'Asha',phone:'+91 98765 43210',service:'Cleaning',when:SLOT},pctx({timeZone:'Asia/Kolkata',localNow:'2026-11-13T10:00',requestId:'turn-3'}),db);
+  assert.equal(q.ok,true,JSON.stringify(q));assert.equal(q.data.status,'booked');assert.equal(q.data.already,true);assert.equal(db.store.bookings.length,1);
+});
 test('F3 taken times, closed days, bad phones, past times and unknown services return typed errors with alternatives', async()=>{
   const db=frontDb();
   db.store.bookings.push({id:'x',phone:'+911111111111',when:SLOT,doctor_id:DR1,status:'booked'});

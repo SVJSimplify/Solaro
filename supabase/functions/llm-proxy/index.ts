@@ -29,8 +29,8 @@ Deno.serve(async req=>{
   if(!Array.isArray(body?.messages)||JSON.stringify(body.messages).length>MAX_CHARS)return J({error:'Bad request'},400);
   const payload={
     messages:body.messages,
-    tools:Array.isArray(body.tools)?body.tools:undefined,
-    tool_choice:body.tool_choice??'auto',
+    // tool_choice is only valid alongside tools; plain completions (Quick setup formatting) send neither.
+    ...(Array.isArray(body.tools)&&body.tools.length?{tools:body.tools,tool_choice:body.tool_choice??'auto'}:{}),
     max_completion_tokens:Math.min(Number(body.max_completion_tokens)||2000,4000),
     reasoning_effort:body.reasoning_effort??'none',
     response_format:body.response_format,
