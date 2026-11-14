@@ -30,5 +30,8 @@ export async function respondWith(store,id,uid){
     await audit(store,uid,'handoff',`${latest.customer}: ${res.reason||'other'}`);
   }
   if(handoff)await store.patch('convos',id,{alerted:true});
-  if(res.reply===FALLBACK)throw Error('Model did not answer. Check the llm-proxy function logs in Supabase.');
+  // Say what actually went wrong, so a missing server setting is not mistaken for a bug in the chat.
+  if(res.reply===FALLBACK)throw Error(/not configured/i.test(res.error||'')
+    ?'Solara’s AI is not connected yet. In Supabase open Edge Functions → Secrets and add LLM_BASE_URL, LLM_API_KEY and LLM_MODEL.'
+    :res.error||'The model did not answer. Check the llm-proxy function logs in Supabase.');
 }

@@ -15,7 +15,7 @@ const why=x=>REASON[[...x.messages].reverse().find(m=>m.meta?.reason)?.meta.reas
 
 export default function Inbox(){
   const {user}=useAuth(),toast=useToast(),confirm=useConfirm(),[cv]=useTable('convos');
-  const [tab,setTab]=useState('all'),[q,setQ]=useState(''),[as,setAs]=useState('team');
+  const [tab,setTab]=useState('all'),[q,setQ]=useState(''),[as,setAs]=useState('patient');   // only used in test chats, where you play the patient so Solara answers (forms included); real chats always send as the team
   const [params]=useSearchParams(),[sel,setSel]=useState(params.get('c')),[callOpen,setCallOpen]=useState(false),[typing,setTyping]=useState(null),[reply,setReply]=useState('');
   const seen=useRef({}),box=useRef(null);
   const all=[...cv].sort((a,b)=>(Number(isUrgent(b))-Number(isUrgent(a)))||(b.created-a.created));
@@ -84,7 +84,7 @@ export default function Inbox(){
             {typing===c.id&&<div className="m bot typing" aria-label="Solara is typing"><i/><i/><i/></div>}
           </div>
           <form className="send" onSubmit={send}>
-            {isTest(c)&&<div className="seg" role="group" aria-label="Send as">{[['team','As the team'],['patient','As the patient']].map(([k,l])=><button key={k} type="button" className="btn sm" aria-pressed={k===as} onClick={()=>setAs(k)}>{l}</button>)}</div>}
+            {isTest(c)&&<div className="seg" role="group" aria-label="Send as">{[['patient','As the patient'],['team','As the team']].map(([k,l])=><button key={k} type="button" className="btn sm" aria-pressed={k===as} onClick={()=>setAs(k)}>{l}</button>)}</div>}
             <input value={reply} maxLength={1000} onChange={e=>setReply(e.target.value)} placeholder={as==='patient'&&isTest(c)?'Type what a patient would ask…':`Reply to ${c.customer}…`} aria-label="Message"/><button className="btn" disabled={!reply.trim()}>Send</button>
           </form>
         </>:<Empty icon="chat" title="No conversation selected">Pick a chat on the left to read it and reply.</Empty>}

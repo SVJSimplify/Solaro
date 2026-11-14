@@ -54,7 +54,7 @@ export async function respondAgent({provider,local,uid,me,convo,settings,org,now
     // The booking form does not need the model, so a booking request still gets it.
     let form=null;
     if(wantsBooking(messages))form=bookingForm((await local.list('doctors',uid)).flatMap(d=>d.services||[]).filter((v,i,a)=>a.indexOf(v)===i));
-    return{reply:FALLBACK,handoff:true,reason:'error',form,booked:false};
+    return{reply:FALLBACK,handoff:true,reason:'error',form,booked:false,error:String(e?.message||e).slice(0,200)};
   }
 
   // Booking requests always get the booking form, so the customer never has to ask for it.

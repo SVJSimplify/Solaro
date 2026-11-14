@@ -1,9 +1,9 @@
 /* Solara design system (Warm Sunrise). Loaded last: this file is the single source of truth for shared components.
-   Coral is for the sidebar, actions and things that need you; amber for confirmed and selected; warm cocoa for text; cream for surfaces.
-   --plum is kept as the token name for the dark text tone so older styles follow it; it is a warm cocoa, not plum. */
+   Coral is for the sidebar, actions and things that need you; amber for confirmed and selected; deep teal (#183F3D) for text; cream for surfaces.
+   --plum is kept as the token name for the dark text tone so older styles follow it; its value is the deep teal, not plum. */
 :root{
-  --coral:#F25C54;--coral6:#C9413A;--coral7:#A8352F;--amber:#F7B32B;--amber1:#FEF0CC;--plum:#5B4038;--cream:#FFF6E5;
-  --bg:#FFFBF2;--sf:#fff;--sf2:#FFF6E5;--ln:#EFE2CC;--ln2:#DCC9AC;--tx:#5B4038;--mu:#7A5A4E;
+  --coral:#F25C54;--coral6:#C9413A;--coral7:#A8352F;--amber:#F7B32B;--amber1:#FEF0CC;--plum:#183F3D;--cream:#FFF6E5;
+  --bg:#FFFBF2;--sf:#fff;--sf2:#FFF6E5;--ln:#EFE2CC;--ln2:#DCC9AC;--tx:#183F3D;--mu:#4F6664;
   --ok:#237A4B;--ok1:#DDF3E4;--bad:#B3261E;--bad1:#FBE0DD;--gone:#8E8377;
   --side:#F25C54;--side-tx:#FFFFFF;--side-hi:rgba(255,255,255,.16);--side-ln:rgba(255,255,255,.22);
   --r-card:16px;--r-ctl:10px;--pop:0 20px 50px -14px rgba(74,44,36,.32),0 2px 8px rgba(74,44,36,.08);
