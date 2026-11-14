@@ -1,6 +1,7 @@
 import {useCallback,useEffect,useState} from 'react';
 import {useAuth,useTable} from './hooks';
 import {clinicNow,openSlots} from './avail';
+import {isWhenField,serviceOf,whenLabel} from './whenField';
 import {formSubmission} from '../../supabase/functions/_shared/agent.js';
 import DateTimePicker from './DateTimePicker';
 import {normalizePhone,isValidPhone} from './phone';
@@ -36,21 +37,24 @@ function useOpenTimes(service){
 
 export default function FormCard({form,done,onSubmit}){
   const [v,setV]=useState({}),[bad,setBad]=useState('');
-  const openTimes=useOpenTimes(form.fields.find(f=>f.name==='service')&&v.service);
+  const openTimes=useOpenTimes(serviceOf(form,v));
+  const whenF=form.fields.find(isWhenField);
   // A time that is no longer open (service changed, or the schedule refreshed) is cleared rather than submitted.
   useEffect(()=>{
-    const w=v.when||'',t=w.slice(11);
-    if(!done&&t&&!openTimes(w.slice(0,10)).includes(t))setV(p=>({...p,when:w.slice(0,11)}));
-  },[openTimes,v.when,done]);
+    if(!whenF)return;
+    const w=v[whenF.name]||'',t=w.slice(11);
+    if(!done&&t&&!openTimes(w.slice(0,10)).includes(t))setV(p=>({...p,[whenF.name]:w.slice(0,11)}));
+  },[openTimes,v,whenF,done]);
   const set=(name,val)=>setV(p=>({...p,[name]:val}));
   const submit=e=>{
     e.preventDefault();
     if(done)return;
     const badPhone=form.fields.find(f=>rulesFor(f).phone&&(phoneProblem(v[f.name])||!isValidPhone(v[f.name])));
-    const noTime=form.fields.find(f=>f.type==='datetime-local'&&f.required&&!/T\d\d:\d\d$/.test(v[f.name]||''));
+    const noTime=whenF&&(whenF.required||v[whenF.name])&&!/T\d\d:\d\d$/.test(v[whenF.name]||'')?whenF:null;
     setBad(badPhone?badPhone.name:noTime?noTime.name:'');
     if(badPhone||noTime)return;
     const out={...v};
+    if(whenF)form.fields.forEach(f=>{if(f!==whenF&&isWhenField(f))out[f.name]=v[whenF.name]});
     form.fields.forEach(f=>{if(rulesFor(f).phone)out[f.name]=normalizePhone(v[f.name])});
     onSubmit(form,formSubmission(form,out));
   };
@@ -61,10 +65,14 @@ export default function FormCard({form,done,onSubmit}){
         const id=`${form.id}-${f.name}`;
         const R=rulesFor(f);
         const common={id,name:f.name,required:f.required||!!R.phone,disabled:done,value:v[f.name]??'',onChange:e=>set(f.name,R.clean(e.target.value))};
+        if(f!==whenF&&isWhenField(f))return null;   // a second date/time field is covered by the one clock
+        if(f===whenF)return(
+          <div key={f.name} className="fc-pick"><span className="flabel">{whenLabel(form,f)}{f.required&&' *'}</span>
+            <DateTimePicker mode="datetime" value={v[f.name]??''} onChange={val=>set(f.name,val)} label={whenLabel(form,f)} openTimes={openTimes}/>
+            {bad===f.name&&<small className="err">Please choose a day and an open time.</small>}</div>);
         if(f.type==='date'||f.type==='datetime-local')return(
           <div key={f.name} className="fc-pick"><span className="flabel">{f.label}{f.required&&' *'}</span>
-            <DateTimePicker mode={f.type==='date'?'date':'datetime'} value={v[f.name]??''} onChange={val=>set(f.name,val)} label={f.label} openTimes={f.name==='when'?openTimes:undefined}/>
-            {bad===f.name&&<small className="err">Please choose a day and an open time.</small>}</div>);
+            <DateTimePicker mode={f.type==='date'?'date':'datetime'} value={v[f.name]??''} onChange={val=>set(f.name,val)} label={f.label}/></div>);
         if(R.phone)return<PhoneField key={f.name} id={id} label={f.label} value={v[f.name]??''} onChange={val=>set(f.name,val)} disabled={done} show={bad===f.name} autoComplete="tel"/>;
         return(
           <label key={f.name} htmlFor={id}>{f.label}{(f.required||R.phone)&&' *'}

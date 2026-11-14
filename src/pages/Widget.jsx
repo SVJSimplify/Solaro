@@ -2,7 +2,8 @@
 import {useEffect,useRef,useState} from 'react';
 import '../widget.css';
 import {Field,PhoneField,problem,phoneProblem} from '../lib/fields';
-import TimeClock from '../lib/TimeClock';
+import TimeClock,{label12} from '../lib/TimeClock';
+import {isWhenField,serviceOf,whenLabel} from '../lib/whenField';
 
 const URL=import.meta.env.VITE_SUPABASE_URL,ANON=import.meta.env.VITE_SUPABASE_ANON_KEY;
 const headers={apikey:ANON,Authorization:'Bearer '+ANON,'Content-Type':'application/json'};
@@ -62,6 +63,29 @@ function BookingPicker({form,chat,onDone,onCancel}){
         <button type="button" className="btn ghost" onClick={onCancel} disabled={busy}>Not now</button></div>
       <p className="wg-note">Our team confirms every request here in this chat.</p>
     </form>);
+}
+
+/* Any "when would you like to come in" field in an assistant-built form: a day, then a clock of the clinic's real
+   open times from the server. Value is "YYYY-MM-DDTHH:MM" ("YYYY-MM-DDT" until a time is chosen). */
+function WhenPicker({id,label,required,value,onChange,chat,service}){
+  const date=value?.slice(0,10)||localToday(),time=value?.slice(11)||'';
+  const [slots,setSlots]=useState(null),[note,setNote]=useState('');
+  useEffect(()=>{
+    let live=true;setSlots(null);setNote('');
+    call('/functions/v1/widget-chat',{action:'slots',conversation_id:chat.conversation_id,token:chat.token,date,...(service?{service}:{})})
+      .then(j=>{if(!live)return;const s=[...new Set((j.slots||[]).map(x=>x.time))];setSlots(s);setNote(j.note||'');
+        if(time&&!s.includes(time))onChange(`${date}T`)})
+      .catch(e=>{if(live){setSlots([]);setNote(e.message)}});
+    return()=>{live=false};
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[date,service,chat]);
+  return(
+    <fieldset className="wg-slots wg-clock"><legend>{label}{required?' *':''}</legend>
+      <div className="f"><label htmlFor={id}>Day</label><input id={id} type="date" min={localToday()} value={date} onChange={e=>onChange(`${e.target.value}T`)}/></div>
+      {slots===null&&<p className="wg-note">Checking open times…</p>}
+      {slots?.length>0&&<TimeClock slots={slots} value={time} label={label} onChange={t=>onChange(`${date}T${t}`)}/>}
+      {slots?.length===0&&<p className="wg-note">{note||'No open times that day. Try another day.'}</p>}
+    </fieldset>);
 }
 
 /* Patient self-service: prove the phone number with a texted code, then move or cancel your own appointments. */
@@ -179,10 +203,14 @@ export default function Widget(){
   const submitText=e=>{e.preventDefault();const t=text.trim();if(!t)return;setText('');send(t)};
   const submitForm=e=>{
     e.preventDefault();
-    const missing=form.fields.filter(f=>f.required&&!String(values[f.name]??'').trim());
+    const whenF=form.fields.find(isWhenField);
+    if(whenF&&(whenF.required||values[whenF.name])&&!/T\d\d:\d\d$/.test(values[whenF.name]||'')){setErr(`Please choose a day and an open time for ${whenF.label.toLowerCase()}.`);return}
+    const shown=f=>{const x=String(values[f.name]??'').trim();if(f!==whenF)return x;
+      return new Date(x.slice(0,10)+'T00:00').toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'})+' at '+label12(x.slice(11))};
+    const missing=form.fields.filter(f=>f.required&&!(f!==whenF&&whenF&&isWhenField(f))&&!String(values[f.name]??'').trim());
     if(missing.length){setErr('Please fill in: '+missing.map(f=>f.label).join(', '));return}
     setForm(null);
-    send('Form submitted: '+form.fields.map(f=>`${f.label}: ${String(values[f.name]??'').trim()||'(blank)'}`).join('; '));
+    send('Form submitted: '+form.fields.filter(f=>!(whenF&&f!==whenF&&isWhenField(f))).map(f=>`${f.label}: ${shown(f)||'(blank)'}`).join('; '));
   };
 
   if(!org)return<div className="wg"><p className="wg-err" role="alert">This chat link is missing its clinic.</p></div>;
@@ -209,7 +237,11 @@ export default function Widget(){
         {form&&!isBooking(form)&&(
           <form className="wg-form" onSubmit={submitForm} aria-label={form.title||'Enquiry'}>
             <h2>{form.title||'Enquiry'}</h2>
-            {form.fields.map(f=>(
+            {form.fields.map(f=>{const whenF=form.fields.find(isWhenField);
+              if(f===whenF&&chat)return<WhenPicker key={f.name} id={'wf-'+f.name} label={whenLabel(form,f)} required={f.required} value={values[f.name]}
+                onChange={x=>setValues(v=>({...v,[f.name]:x}))} chat={chat} service={serviceOf(form,values)}/>;
+              if(whenF&&isWhenField(f))return null;   // a second date/time field is covered by the one clock
+              return(
               <div key={f.name} className="f">
                 <label htmlFor={'wf-'+f.name}>{f.label}{f.required?' *':''}</label>
                 {f.type==='select'?
@@ -220,7 +252,7 @@ export default function Widget(){
                 :
                   <input id={'wf-'+f.name} type={['tel','email','date','datetime-local'].includes(f.type)?f.type:'text'} autoComplete={f.type==='tel'?'tel':f.type==='email'?'email':f.name==='name'?'name':'off'}
                     value={values[f.name]??''} required={f.required} onChange={e=>setValues({...values,[f.name]:e.target.value})}/>}
-              </div>))}
+              </div>)})}
             <button className="btn" disabled={busy}>{form.submit||'Send'}</button>
           </form>)}
       </div>
