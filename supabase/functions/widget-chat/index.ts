@@ -8,7 +8,7 @@ import {publicAdapter} from '../_shared/tools/supabaseAdapter.js';
 import {bookingForm,wantsBooking,wantsManage} from '../_shared/tools/front.js';
 import {normalizePhone,countryForTimeZone} from '../_shared/tools/phone.js';
 import {logEvent,allow} from '../_shared/ops.js';
-import {publicSystem,checkAppointmentClaim} from '../_shared/tools/prompt.js';
+import {publicSystem,checkAppointmentClaim,infoChangedNote} from '../_shared/tools/prompt.js';
 import {buildMessages,triage,cleanForm,hasHealthSignal,REASONS,FALLBACK,callModelRaw} from '../_shared/agent.js';
 
 const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type'};
@@ -200,16 +200,20 @@ Deno.serve(async req=>{
   if(t){reply=t.reply;out.handoff=true;out.reason=t.reason;urgent=t.urgent??null}
   else{
     const pv:any=await orgProvider(svc,orgId);
-    const {data:hist}=await svc.from('messages').select('role,body').eq('org_id',orgId).eq('conversation_id',cid).order('created_at',{ascending:false}).limit(30);
+    const {data:hist}=await svc.from('messages').select('role,body,created_at').eq('org_id',orgId).eq('conversation_id',cid).order('created_at',{ascending:false}).limit(30);
     const messages=buildMessages((hist??[]).reverse());
     if(pv.error){logEvent('widget-chat',{org:orgId,action:'message',outcome:'provider_unavailable',error:pv.error});reply=FALLBACK;out.handoff=true;out.reason='error'}
     else{
-      const [st,org]=await Promise.all([svc.from('settings').select('tone,greeting').eq('org_id',orgId).maybeSingle(),svc.from('organizations').select('name').eq('id',orgId).single()]);
+      const [st,org]=await Promise.all([svc.from('settings').select('tone,greeting').eq('org_id',orgId).maybeSingle(),svc.from('organizations').select('name,info_changed_at').eq('id',orgId).single()]);
+      // Clinic info changed since Solara last spoke here? Then she must re-check what she said.
+      const lastBot=(hist??[]).findLast((m:any)=>m.role==='bot')?.created_at;   // hist is oldest-first here
+      const changed=lastBot&&org.data?.info_changed_at&&Date.parse(org.data.info_changed_at)>Date.parse(lastBot)
+        ?infoChangedNote(new Intl.DateTimeFormat('en-US',{timeZone,hour:'numeric',minute:'2-digit'}).format(new Date(org.data.info_changed_at))):'';
       try{
         const res:any=await withTimeout(runToolLoop({
           callModel:(m:any,tools:any)=>callModelRaw({...pv.provider,maxTokens:1200,reasoningEffort:'none',onAttempt:(a:any)=>attempts.push(a)},m,tools),
           registry,db,role:'public',surface:'public',ctx:ctx(out),
-          system:publicSystem({org:org.data?.name??'this clinic',tone:st.data?.tone??'friendly',greeting:st.data?.greeting??'',timeZone}),messages,checkClaim:checkAppointmentClaim}),40000);
+          system:publicSystem({org:org.data?.name??'this clinic',tone:st.data?.tone??'friendly',greeting:st.data?.greeting??'',timeZone})+changed,messages,checkClaim:checkAppointmentClaim}),40000);
         reply=res.reply;
         logEvent('widget-chat',{org:orgId,action:'message',outcome:res.stopped??'ok',rechecked:!!res.rechecked,ms:Date.now()-t0,tools:res.calls.map((c:any)=>c.ok?c.name:c.name+':'+c.code),attempts});
       }catch(e){logEvent('widget-chat',{org:orgId,action:'message',outcome:'model_failed',ms:Date.now()-t0,attempts,error:String(e).slice(0,200)});reply=FALLBACK;out.handoff=true;out.reason='error'}
