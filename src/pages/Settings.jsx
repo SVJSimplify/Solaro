@@ -37,18 +37,10 @@ export default function Settings(){
         <button className="btn sm">Add</button>
       </form>}
     </section>
-    {canManage&&me.org&&<section className="card st" style={{maxWidth:520,marginTop:16}}>
+    {canManage&&<section className="card st" style={{maxWidth:520,marginTop:16}}>
       <h3>Website chat</h3>
-      <p className="route">Paste this one line before <code>&lt;/body&gt;</code> on your website. It adds a chat button in the corner; patients can ask questions and request appointments.</p>
-      <textarea readOnly rows={2} aria-label="Website chat code" value={scriptCode} onFocus={e=>e.target.select()}/>
-      <div className="acts" style={{marginTop:8}}>
-        <button type="button" className="btn sm" onClick={()=>{navigator.clipboard?.writeText(scriptCode);toast('Copied')}}>Copy code</button>
-        <a className="btn ghost sm" href={`/widget?org=${me.org}`} target="_blank" rel="noopener">Preview chat</a>
-      </div>
-      <details style={{marginTop:10}}><summary>Show the chat inside a page instead</summary>
-        <textarea readOnly rows={3} aria-label="Inline chat code" value={embedCode} onFocus={e=>e.target.select()}/>
-        <button type="button" className="btn ghost sm" onClick={()=>{navigator.clipboard?.writeText(embedCode);toast('Copied')}}>Copy inline code</button>
-      </details>
+      <p className="route">Customise the chat button, copy your code and check it's live on your site.</p>
+      <a className="btn sm" href="/install">Set up website chat</a>
     </section>}
   </>);
 }

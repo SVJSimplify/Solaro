@@ -48,6 +48,7 @@ export const local=(()=>{
    async confirmDoctorDeletion(token){const p=pending.get(token);pending.delete(token);if(!p||p.exp<Date.now())throw Error('This confirmation is invalid, expired or already used');
     const s=st(),d=s.doctors.find(x=>x.id===p.id);if(!d)throw Error('That doctor no longer exists');s.doctors=s.doctors.filter(x=>x.id!==p.id);S(s);return{removed:d.name}},
    async postMessage(cid,text){const s=st(),c=s.convos.find(x=>x.id===cid);if(c){c.messages.push({r:'staff',t:text,at:Date.now()});S(s)}},
+   async widgetInstalls(){return []},
    async settings(uid){return st().settings[uid]||{}},
    async saveSettings(uid,v){const s=st();s.settings[uid]={...s.settings[uid],...v};S(s)}
   }})();

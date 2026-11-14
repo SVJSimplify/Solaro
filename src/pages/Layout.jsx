@@ -8,7 +8,7 @@ import {runReminders} from '../lib/outbox';
 const NAV=[
   [['today','Today','sun'],['inbox','Inbox','chat'],['bookings','Bookings','cal'],['alerts','Alerts','bell']],
   [['customers','Patients','people'],['insights','Insights','chart'],['activity','Activity','list']],
-  [['knowledge','Knowledge','book'],['settings','Settings','gear']],
+  [['knowledge','Knowledge','book'],['install','Website chat','globe'],['settings','Settings','gear']],
 ];
 
 export default function Layout(){

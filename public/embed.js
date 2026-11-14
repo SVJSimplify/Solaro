@@ -4,6 +4,10 @@
   var s=document.currentScript;if(!s||window.__solaraChat)return;
   var org=s.getAttribute('data-org');if(!org||!/^[0-9a-f-]{36}$/i.test(org))return;
   window.__solaraChat=true;
+  // Tell the clinic's dashboard this site has the chat installed (public key; fire-and-forget).
+  try{fetch('https://wqhxpfzbvtkdwzehddjr.supabase.co/rest/v1/rpc/widget_ping',{method:'POST',keepalive:true,
+    headers:{'Content-Type':'application/json',apikey:'sb_publishable_mgqlYnRfwa91pfm52GRsNw_HVFu0wUP'},
+    body:JSON.stringify({org:org,origin:location.origin})}).catch(function(){})}catch(e){}
   var base=new URL(s.src,location.href).origin,color=s.getAttribute('data-color')||'#C9413A',label=s.getAttribute('data-label')||'Chat with us';
   var side=s.getAttribute('data-position')==='left'?'left':'right',open=false,frame=null;
   var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
