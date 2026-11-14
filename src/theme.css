@@ -341,3 +341,9 @@ a.tile{transition:border-color .15s}a.tile:hover{border-color:var(--coral6)}
 aside .tab,aside .who,aside .logo{text-shadow:0 1px 2px rgba(150,35,30,.35)}
 aside .tab{font-weight:600;font-size:.96rem;opacity:1}
 aside .tab.on{text-shadow:none}
+/* New-booking picker: roomy two-line cards (time, then doctor) that never shrink inside the drawer. */
+.slots.pick{grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:10px;max-height:min(52vh,420px);padding:4px 4px 4px 2px;flex:none;align-content:start}
+.slots.pick .slot{display:flex;flex-direction:column;gap:3px;min-height:58px;padding:10px 12px;border-radius:12px;font-size:.8rem;line-height:1.25}
+.slots.pick .slot b{font-size:.95rem;margin:0}
+.slots.pick .slot-who{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:520px){.slots.pick{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}}

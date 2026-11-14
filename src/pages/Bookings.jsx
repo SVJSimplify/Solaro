@@ -30,7 +30,7 @@ function SlotPicker({docs,rows,leave,closed,now,service,doctorId,skipId,hide,sel
     {closedOn(date,closed,leave)?<p className="route">The clinic is closed that day.</p>
       :!slots.length?<p className="route">No open times that day{service?` for ${service}`:''}. Try another day.</p>
       :<div className="slots pick" role="group" aria-label="Open times">{slots.map(s=>{const on=sel&&sel.when===s.when&&sel.doctor_id===s.doctor.id;
-        return<button type="button" key={s.doctor.id+s.when} className={'slot '+(on?'sel':'free')} aria-pressed={!!on} disabled={busy} onClick={()=>onPick(s)}><b>{clock(s.when)}</b> {s.doctor.name}</button>})}</div>}
+        return<button type="button" key={s.doctor.id+s.when} className={'slot '+(on?'sel':'free')} aria-pressed={!!on} disabled={busy} onClick={()=>onPick(s)} title={`${clock(s.when)} with ${s.doctor.name}`}><b>{clock(s.when)}</b><span className="slot-who">{s.doctor.name}</span></button>})}</div>}
   </>);
 }
 
