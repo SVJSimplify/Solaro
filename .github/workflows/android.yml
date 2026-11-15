@@ -1,0 +1,82 @@
+# Builds the Solara Android app from the same web code as the dashboard and the chat.
+#   • Always: a debug APK you can install on a phone to test (Actions → this run → Artifacts).
+#   • With signing secrets: a signed release APK and an .aab for Google Play.
+# Repository secrets:
+#   GOOGLE_SERVICES_JSON          contents of google-services.json from Firebase (push + phone sign-in). Optional, but
+#                                 without it the app builds and runs with no notifications and no phone sign-in.
+#   RELEASE_KEYSTORE_BASE64       base64 of the upload keystore (.jks), and its
+#   RELEASE_KEYSTORE_PASSWORD, RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD
+name: Android app
+
+on:
+  push:
+    branches: [main]
+    paths: ['src/**', 'android/**', 'capacitor.config.json', 'package.json', 'package-lock.json', 'index.html', 'public/**', '.github/workflows/android.yml']
+  workflow_dispatch: {}
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      # Public values (the same ones the website ships).
+      VITE_SUPABASE_URL: https://wqhxpfzbvtkdwzehddjr.supabase.co
+      VITE_SUPABASE_ANON_KEY: sb_publishable_mgqlYnRfwa91pfm52GRsNw_HVFu0wUP
+      VERSION_CODE: ${{ github.run_number }}
+      VERSION_NAME: 1.0.${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21, cache: gradle }
+
+      - name: Build the web app
+        run: npm ci && npx vite build
+
+      - name: Copy it into the Android project
+        run: npx cap sync android
+
+      - name: Firebase config
+        env:
+          GS: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GS" ]; then printf '%s' "$GS" > android/app/google-services.json; echo "Firebase: configured" >> "$GITHUB_STEP_SUMMARY"
+          else echo "::warning::GOOGLE_SERVICES_JSON is not set: this build has no push notifications or phone sign-in."; echo "Firebase: **not configured**" >> "$GITHUB_STEP_SUMMARY"; fi
+
+      - name: Debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Release (signed)
+        env:
+          KS: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        working-directory: android
+        run: |
+          if [ -z "$KS" ]; then echo "No signing key: skipping the release build." >> "$GITHUB_STEP_SUMMARY"; exit 0; fi
+          umask 077; echo "$KS" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          export RELEASE_KEYSTORE="$RUNNER_TEMP/upload.jks"
+          ./gradlew assembleRelease bundleRelease --no-daemon
+          # The certificate fingerprint is public; it goes into /.well-known/assetlinks.json so links open the app.
+          echo "Signing certificate: \`$(keytool -list -v -keystore "$RELEASE_KEYSTORE" -storepass "$RELEASE_KEYSTORE_PASSWORD" -alias "$RELEASE_KEY_ALIAS" | grep -m1 'SHA256:' | sed 's/.*SHA256: //')\`" >> "$GITHUB_STEP_SUMMARY"
+          rm -f "$RUNNER_TEMP/upload.jks"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: solara-android-${{ env.VERSION_NAME }}
+          path: |
+            android/app/build/outputs/apk/debug/*.apk
+            android/app/build/outputs/apk/release/*.apk
+            android/app/build/outputs/bundle/release/*.aab
+          retention-days: 30
+          if-no-files-found: error

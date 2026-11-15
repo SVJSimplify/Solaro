@@ -1,0 +1,18 @@
+{
+  "appId": "com.solario.solara",
+  "appName": "Solara",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "hostname": "solaro-six.vercel.app"
+  },
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
+  },
+  "plugins": {
+    "PushNotifications": { "presentationOptions": ["badge", "sound", "alert"] },
+    "FirebaseAuthentication": { "skipNativeAuth": false, "providers": ["phone"] }
+  }
+}

@@ -1,3 +1,4 @@
+import {OwnAppEmbed,SolaraAppQr} from '../lib/AppChannels';
 import {useEffect,useMemo,useState} from 'react';
 import {db} from '../lib/db';
 import {useAuth,useToast} from '../lib/hooks';
@@ -100,6 +101,9 @@ export default function Install(){
             onClick={async()=>{try{await db.removeInstall(me.id,s.origin);setSites(x=>x.filter(y=>y.origin!==s.origin))}catch(e){toast(e.message)}}}>×</button>}</li>)}</ul>}
         <button type="button" className="btn ghost sm" onClick={check} disabled={checking}>{checking?'Checking…':'Check again'}</button>
       </section>
+
+      {wkey&&<SolaraAppQr wkey={wkey} clinic={me.biz}/>}
+      {wkey&&<OwnAppEmbed wkey={wkey}/>}
     </div>
   </>);
 }

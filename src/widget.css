@@ -162,3 +162,31 @@
 /* ── Small screens / embed ────────────────────────────── */
 @media (max-width:519px){.wg--embed .wg-head{padding-right:64px}.wg-manage span{display:none}.wg-manage{width:34px;padding:0;justify-content:center}}
 @media (prefers-reduced-motion:reduce){.wg *{animation:none!important;transition:none!important}.wg-log{scroll-behavior:auto}}
+
+/* ── Solara app: patient home ─────────────────────────────── */
+.ah{padding-top:env(safe-area-inset-top)}
+.ah .wg-head{padding-right:18px}
+.ah-start{justify-content:space-between;padding:12vh 24px 32px}
+.ah-hero{text-align:center}
+.ah-hero h1{margin:14px 0 6px;font:600 2.4rem/1 var(--w-serif);color:var(--w-tx)}
+.ah-hero p{margin:0 auto;max-width:28ch;color:var(--w-tx2)}
+.ah-choices{display:grid;gap:12px}
+.wg .btn.ah-big{min-height:52px;font-size:1rem}
+.ah-body{flex:1;overflow-y:auto;padding:18px 16px;display:flex;flex-direction:column;gap:14px}
+.ah-card{display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:var(--w-r);background:var(--w-sf);border:1px solid var(--w-ln2)}
+.ah-card b{font:600 1.1rem var(--w-serif)}
+.ah-card p{margin:0;color:var(--w-tx2);font-size:.9rem}
+.ah-notif{border-color:rgba(242,162,120,.45)}
+.ah-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.ah-list li{display:flex;align-items:center;gap:8px}
+.ah-clinic{flex:1;display:flex;align-items:center;gap:12px;min-height:60px;padding:8px 14px 8px 10px;border-radius:var(--w-r);border:1px solid var(--w-ln2);background:var(--w-sf);color:var(--w-tx);font:inherit;text-align:left;cursor:pointer}
+.ah-clinic b{font:600 1.15rem var(--w-serif)}
+.ah-clinic .wg-avatar{width:38px;height:38px;font-size:1rem}
+.ah-clinic .wg-avatar::after{display:none}
+.ah-empty{margin:4px 2px;color:var(--w-tx2)}
+.ah-link{display:flex;gap:8px}
+.ah-link input{flex:1;min-width:0;min-height:44px;padding:10px 12px;border-radius:var(--w-r-sm);background:var(--e-800);color:var(--w-tx);border:1px solid var(--w-ln2);font-size:1rem}
+.ah-link input:focus{outline:none;border-color:var(--w-acc);box-shadow:0 0 0 3px rgba(217,111,84,.22)}
+.wg-back{flex:none;width:36px;height:36px;margin-left:-6px;border:0;border-radius:50%;background:transparent;color:var(--w-tx2);display:grid;place-items:center;cursor:pointer}
+.wg-back:hover{background:var(--w-sf)}
+.wg--app{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}

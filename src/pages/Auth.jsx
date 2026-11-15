@@ -3,7 +3,7 @@ import {db} from '../lib/db';import {Logo} from '../lib/ui';import {Field,proble
 import {passwordProblem,authMessage,PASSWORD_HINT} from '../lib/password';
 import {pendingJoin,takeJoinError} from '../lib/join';
 
-export default function Auth({onAuth}){
+export default function Auth({onAuth,onPatient}){
   const invited=!!pendingJoin();
   const [sign,setSign]=useState(false),[f,setF]=useState({em:'',pw:'',bn:''}),[err,setErr]=useState(()=>takeJoinError()||''),[shake,setShake]=useState(false),[busy,setBusy]=useState(false),[show,setShow]=useState(false);
   const set=k=>v=>setF({...f,[k]:v});
@@ -30,6 +30,7 @@ export default function Auth({onAuth}){
       <p className="err" role="alert">{err}</p>
       <button className={'btn'+(busy?' busy':'')} style={{width:'100%'}}>{sign?'Create account':'Sign in'}</button>
       <p style={{margin:'14px 0 0',textAlign:'center'}}><button type="button" className="lk" onClick={()=>{setSign(!sign);setErr('');setShow(false)}}>{sign?'I already have an account':'Create an account'}</button>{!sign&&<> · <button type="button" className="lk" onClick={forgot}>Forgot password</button></>}</p>
+      {onPatient&&<p style={{margin:'10px 0 0',textAlign:'center'}}><button type="button" className="lk" onClick={onPatient}>I’m a patient</button></p>}
     </form></div>
   );
 }

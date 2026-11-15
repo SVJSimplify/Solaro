@@ -286,3 +286,7 @@ a.tile:hover,.tile.hot{border-color:var(--coral)}
 .setup-list li.done{color:var(--mu)}.setup-list li.done span:not(.setup-tick){text-decoration:line-through}
 .setup-tick{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--ln2);display:grid;place-items:center;flex:none;color:#fff}
 .setup-list li.done .setup-tick{background:var(--ok);border-color:var(--ok)}
+.qr-row{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.qr{width:180px;height:180px;border-radius:12px;border:1px solid var(--ln);background:#fff}
+.inst-code{margin:12px 0;max-height:320px;overflow:auto;padding:12px 14px;border-radius:10px;background:var(--sf2);border:1px solid var(--ln);font-size:.78rem;line-height:1.5;white-space:pre}
+.url-row{display:flex;align-items:center;gap:10px}.url-row .btn{flex:none}

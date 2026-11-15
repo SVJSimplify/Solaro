@@ -1,4 +1,5 @@
 /* Public website chat. Visitors never sign in. A chat is resumed from this browser, and staff replies appear here automatically. */
+import {isApp,rememberClinic,pushToken,startPhoneSignIn,confirmPhoneCode} from '../lib/native';
 import {useEffect,useRef,useState} from 'react';
 import '../widget.css';
 import {Reveal} from '../lib/Reveal';
@@ -102,6 +103,11 @@ function ManagePanel({chat,onClose,onChanged}){
   const api=(action,extra={})=>call('/functions/v1/widget-chat',{action,conversation_id:chat.conversation_id,token:chat.token,...extra});
   const run=async fn=>{setBusy(true);setErr('');try{await fn()}catch(e){setErr(e.message);if(e.status===401)setStep('phone')}finally{setBusy(false)}};
   const load=()=>run(async()=>{const j=await api('my_bookings');setList(j.appointments||[]);setStep('list')});
+  // In the Solara app the phone is proven by Firebase; the server checks the sign-in and treats the number as verified.
+  const vid=useRef(null);
+  const linked=async idToken=>{await api('app_link',{id_token:idToken,device_token:(await pushToken({ask:false}))||undefined});const j=await api('my_bookings');setList(j.appointments||[]);setStep('list')};
+  const appStart=()=>run(async()=>{const r=await startPhoneSignIn(phone);if(r.idToken)return linked(r.idToken);vid.current=r.verificationId;setInfo('We sent a code to '+phone+'.');setStep('code')});
+  const appCode=()=>run(async()=>linked(await confirmPhoneCode(vid.current,code)));
   useEffect(()=>{
     if(!moving||!date)return;let live=true;setSlots(null);
     api('slots',{date,service:moving.service}).then(j=>live&&setSlots([...new Set((j.slots||[]).map(x=>x.time))])).catch(e=>live&&setErr(e.message));
@@ -112,11 +118,11 @@ function ManagePanel({chat,onClose,onChanged}){
   return(
     <section className="wg-form" aria-label="Manage my appointment">
       <h2>Manage my appointment</h2>
-      {step==='phone'&&<form onSubmit={e=>{e.preventDefault();run(async()=>{const j=await api('verify_start',{phone});setInfo(j.message);setStep('code')})}}>
+      {step==='phone'&&<form onSubmit={e=>{e.preventDefault();if(isApp)return appStart();run(async()=>{const j=await api('verify_start',{phone});setInfo(j.message);setStep('code')})}}>
         <PhoneField id="mg-phone" label="Phone number on your appointment" value={phone} onChange={setPhone} autoComplete="tel"/>
-        <div className="acts"><button className="btn" disabled={busy||!!phoneProblem(phone)}>{busy?'Sending…':'Text me a code'}</button></div>
+        <div className="acts"><button className="btn" disabled={busy||!!phoneProblem(phone)}>{busy?'Sending…':isApp?'Send me a code':'Text me a code'}</button></div>
       </form>}
-      {step==='code'&&<form onSubmit={e=>{e.preventDefault();run(async()=>{await api('verify_check',{code});const j=await api('my_bookings');setList(j.appointments||[]);setStep('list')})}}>
+      {step==='code'&&<form onSubmit={e=>{e.preventDefault();if(isApp)return appCode();run(async()=>{await api('verify_check',{code});const j=await api('my_bookings');setList(j.appointments||[]);setStep('list')})}}>
         <p className="wg-note">{info}</p>
         <div className="f"><label htmlFor="mg-code">6-digit code</label><input id="mg-code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,''))} required/></div>
         <div className="acts"><button className="btn" disabled={busy||code.length!==6}>{busy?'Checking…':'Verify'}</button><button type="button" className="btn ghost" onClick={()=>{setStep('phone');setCode('')}}>Use another number</button></div>
@@ -198,11 +204,11 @@ export default function Widget(){
           const [row]=await call('/rest/v1/rpc/widget_start',{key:org});
           c={conversation_id:row.conversation_id,token:row.token};
           localStorage.setItem(key,JSON.stringify(c));
-          setName(row.org_name);setGreeting(row.greeting);
+          setName(row.org_name);setGreeting(row.greeting);rememberClinic(org,row.org_name);
         }else{
           // Read-only lookup: resuming a chat must not create a new one.
           const [o]=await fetch(URL+'/rest/v1/rpc/widget_info',{method:'POST',headers,body:JSON.stringify({key:org})}).then(r=>r.ok?r.json():[{}]).catch(()=>[{}]);
-          if(o?.org_name){setName(o.org_name);setGreeting(o.greeting)}
+          if(o?.org_name){setName(o.org_name);setGreeting(o.greeting);rememberClinic(org,o.org_name)}
         }
         setChat(c);
         await poll(c);
@@ -222,7 +228,8 @@ export default function Widget(){
     const mine={role:'cust',body:content,pending:true,created_at:new Date().toISOString()};
     setMsgs(m=>[...m,mine]);
     try{
-      const j=await call('/functions/v1/widget-chat',{conversation_id:chat.conversation_id,token:chat.token,text:content});
+      const j=await call('/functions/v1/widget-chat',{conversation_id:chat.conversation_id,token:chat.token,text:content,...(isApp?{app:true}:{})});
+      if(isApp)linkDevice();
       if(j.form){setForm(j.form);setValues({})}else setForm(null);
       if(j.manage)setManage(true);
       setConfirm(j.confirm||null);
@@ -232,6 +239,13 @@ export default function Widget(){
       setErr(e.message);setMsgs(m=>m.filter(x=>x!==mine));if(e.status===409&&/ended/.test(e.message))setStatus('closed');
       if(e.status===401){localStorage.removeItem(key)}
     }finally{setBusy(false)}
+  };
+
+  // In the app, once per chat: ask for notifications and link this phone, so replies and reminders reach it.
+  const linkDevice=async()=>{
+    const flag=key+'.linked';try{if(localStorage.getItem(flag))return}catch{}
+    const t=await pushToken();if(!t)return;
+    try{await call('/functions/v1/widget-chat',{action:'app_link',conversation_id:chat.conversation_id,token:chat.token,device_token:t});localStorage.setItem(flag,'1')}catch{}
   };
 
   // Solara asked to cancel; nothing happens until the person decides here.
@@ -262,8 +276,10 @@ export default function Widget(){
   // Inside the embed iframe on phones, the launcher's close button sits over the header's right edge.
   const embedded=(()=>{try{return window.self!==window.top}catch{return true}})();
   return(
-    <div className={'wg'+(embedded?' wg--embed':'')}>
+    <div className={'wg'+(embedded?' wg--embed':'')+(isApp?' wg--app':'')}>
       <header className="wg-head">
+        {isApp&&<button type="button" className="wg-back" aria-label="Back to your clinics" onClick={()=>location.assign('/')}>
+          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg></button>}
         <span className="wg-avatar" aria-hidden="true">{initials(name)}</span>
         <div className="wg-id"><h1>{name}</h1><p>Online now · replies in seconds</p></div>
         {chat&&!manage&&!ended&&<button type="button" className="wg-manage" onClick={()=>setManage(true)} aria-label="Manage my booking">

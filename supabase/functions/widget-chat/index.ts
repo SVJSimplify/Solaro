@@ -9,6 +9,7 @@ import {bookingForm,wantsBooking,wantsManage} from '../_shared/tools/front.js';
 import {normalizePhone,countryForTimeZone} from '../_shared/tools/phone.js';
 import {logEvent,allow,recordOps} from '../_shared/ops.js';
 import {withCors,clientIp} from '../_shared/http.js';
+import {verifyIdToken} from '../_shared/firebase.js';
 import {publicSystem,checkAppointmentClaim,infoChangedNote} from '../_shared/tools/prompt.js';
 import {buildMessages,triage,cleanForm,hasHealthSignal,REASONS,FALLBACK,callModelRaw} from '../_shared/agent.js';
 
@@ -90,6 +91,36 @@ Deno.serve(withCors(async req=>{
   };
 
   // 3a. Send a code. The answer is the same whether or not the number has appointments, so numbers cannot be probed.
+  // 3. The Solara app links this chat to the phone: its push token (for replies and reminders) and, after Firebase phone
+  //    sign-in, the proven phone number, which then counts as verified for managing appointments (no SMS code needed).
+  if(body.action==='app_link'){
+    let phone:string|null=null,uid:string|null=null;
+    if(body.id_token){
+      try{({uid,phone}=await verifyIdToken(String(body.id_token),Deno.env.get('FIREBASE_PROJECT_ID')??''))}
+      catch(e){logEvent('widget-chat',{org:orgId,action:'app_link',outcome:'id_token_rejected',error:String(e).slice(0,120)});return J({error:'Phone sign-in could not be checked. Please try again.'},401)}
+      const at=new Date().toISOString();
+      await svc.from('patient_verifications').insert({org_id:orgId,conversation_id:cid,phone,code_hash:'firebase:'+uid,expires_at:at,verified_at:at});
+    }
+    const token=String(body.device_token??'');
+    if(token){
+      if(token.length<20||token.length>4096)return J({error:'Invalid device'},400);
+      const {data:d}=await svc.from('push_devices').select('id,role').eq('token',token).maybeSingle();
+      let id=d?.id;
+      if(d&&d.role==='staff'){/* a staff phone stays a staff phone; its owner is signed in to the dashboard */}
+      else{
+        const fields:any={role:'patient',last_seen:new Date().toISOString(),disabled_at:null,...(phone?{phone,firebase_uid:uid}:{})};
+        if(d)await svc.from('push_devices').update(fields).eq('id',d.id);
+        else id=(await svc.from('push_devices').insert({token,...fields}).select('id').single()).data?.id;
+        if(id){
+          const {count}=await svc.from('push_links').select('device_id',{count:'exact',head:true}).eq('device_id',id).eq('org_id',orgId).eq('conversation_id',cid);
+          if(!count)await svc.from('push_links').insert({device_id:id,org_id:orgId,conversation_id:cid});   // a racing duplicate is rejected by the unique index
+        }
+      }
+    }
+    logEvent('widget-chat',{org:orgId,action:'app_link',outcome:'ok',verified:!!phone,device:!!token});
+    return J({linked:true,verified:!!phone});
+  }
+
   if(body.action==='verify_start'){
     if(!smsReady())return J({error:'Please type your request in the chat and our team will help you.'},503);
     const phone=normalizePhone(String(body.phone??''),countryForTimeZone(timeZone));
@@ -246,6 +277,6 @@ Deno.serve(withCors(async req=>{
     const reason=REASONS.includes(out.reason)?out.reason:'other';
     await svc.from('alerts').insert({org_id:orgId,convo:cid,customer:convo.customer,reason,text:text.slice(0,160)});
   }
-  return J({reply,handoff:out.handoff,status:out.handoff?'handoff':'handled',form:out.form?cleanForm(out.form):null,manage:!!out.manage&&smsReady(),urgent,
+  return J({reply,handoff:out.handoff,status:out.handoff?'handoff':'handled',form:out.form?cleanForm(out.form):null,manage:!!out.manage&&(smsReady()||body.app===true),urgent,
     confirm:!out.handoff&&out.confirm?out.confirm:null});
 }));

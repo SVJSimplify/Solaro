@@ -7,22 +7,31 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test:tools": "node --test tests/tools/unit.test.mjs",
+    "test:tools": "node --test tests/tools/unit.test.mjs tests/tools/firebase.test.mjs",
     "test:schedule": "node --test tests/schedule/clinic-hours.test.mjs",
     "test:db": "node --test tests/db/information.test.mjs tests/db/tools.test.mjs tests/db/production.test.mjs",
     "test:backfill": "node --test tests/db/backfill.test.mjs",
     "bench": "node tests/perf/bench.mjs"
   },
   "dependencies": {
+    "@capacitor-firebase/authentication": "^8.6.0",
+    "@capacitor-mlkit/barcode-scanning": "^8.2.2",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.6.2",
+    "@capacitor/push-notifications": "^8.1.3",
     "@supabase/supabase-js": "^2.119.0",
     "@vercel/functions": "^3.11.3",
+    "firebase": "^12.19.0",
     "pdfjs-dist": "^4.10.38",
+    "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.2",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.6.2",
+    "@capacitor/cli": "^8.6.2",
     "@vitejs/plugin-react": "^4.3.1",
     "pg": "^8.23.1",
     "vite": "^5.4.8"

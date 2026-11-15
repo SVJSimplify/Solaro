@@ -195,6 +195,9 @@ export const remote={
   async clinicHours(){return must(await sb.from('settings').select('hours').eq('org_id',org).maybeSingle())?.hours??{}},
   async saveClinicHours(_u,h){const r=must(await sb.rpc('set_clinic_hours',{p_org:org,p_hours:h}));ping('settings');ping('kb');ping('audit');return r},
   /* Logs: kind activity|messages|handoffs; ids, or a period [from,to). Returns how many were removed. */
+  // App push notifications for this signed-in staff member and clinic.
+  async registerDevice(token){must(await sb.rpc('register_staff_device',{p_token:token,p_org:org}))},
+  async unregisterDevice(token){if(token)must(await sb.rpc('unregister_device',{p_token:token}))},
   // Team: members, invites (join links), roles.
   async team(){return must(await sb.rpc('team_list',{p_org:org}))},
   async invite(email,role){return must(await sb.rpc('team_invite',{p_org:org,p_email:email,p_role:role}))},

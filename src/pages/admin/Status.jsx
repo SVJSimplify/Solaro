@@ -44,7 +44,7 @@ export default function Status(){
     <div className="card st" style={{marginTop:16}}>
       <h3>Get emailed when Solara goes down</h3>
       <p className="route">Add this address to an uptime monitor (UptimeRobot or Better Stack, both free). It answers 503 when a critical check fails or the database can't be reached.</p>
-      <div className="inst-row"><code className="sys-url">{HEALTH_URL}</code>
+      <div className="url-row"><code className="sys-url">{HEALTH_URL}</code>
         <button type="button" className="btn ghost sm" onClick={()=>navigator.clipboard.writeText(HEALTH_URL).then(()=>toast('Copied'))}>Copy</button></div>
     </div>
   </>);
