@@ -1,5 +1,5 @@
 {
-  "rewrites": [{ "source": "/((?!assets/|embed\\.js$|embed/|favicon).*)", "destination": "/index.html" }],
+  "rewrites": [{ "source": "/((?!assets/|\\.well-known/|embed\\.js$|embed/|favicon).*)", "destination": "/index.html" }],
   "headers": [
     {
       "source": "/(.*)",

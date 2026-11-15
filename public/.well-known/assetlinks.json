@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.solario.solara",
+      "sha256_cert_fingerprints": [
+        "11:09:92:89:34:C4:F6:4F:63:59:22:38:90:96:DA:D2:52:61:EA:DE:FE:63:66:7C:06:F2:C4:6C:B9:41:E0:0B"
+      ]
+    }
+  }
+]
