@@ -216,3 +216,28 @@ a.tile:hover,.tile.hot{border-color:var(--coral)}
 .cols-axis{display:flex;justify-content:space-between;gap:8px;color:var(--mu);font-size:.78rem;margin-top:6px;border-top:1.5px solid var(--ln);padding-top:6px}
 .key{display:inline-block;width:9px;height:9px;border-radius:2px;margin:0 3px 0 8px}.key.n{background:var(--coral)}.key.x{background:var(--ln)}
 @media(max-width:720px){.filters{grid-template-columns:1fr 1fr}.filters input{grid-column:1/-1}}
+
+/* Admin: clinic list with inline editor */
+.adm-list{padding:0;overflow-x:auto}
+.adm-list table{min-width:760px}
+.adm-list th{padding:14px 14px 10px}
+.adm-list td{padding:12px 14px}
+.adm-list td small{display:block;color:var(--mu);font-size:.8rem;margin-top:2px}
+.adm-row{cursor:pointer;transition:background-color .15s}
+.adm-row:hover,.adm-row.on{background:var(--sf2)}
+.adm-row code{font-size:.85rem}
+.adm-use{font-variant-numeric:tabular-nums}
+.adm-bar{display:block;width:96px;height:4px;margin-top:6px;border-radius:2px;background:var(--ln);overflow:hidden}
+.adm-bar i{display:block;height:100%;background:var(--ok)}.adm-bar i.hi{background:var(--coral6)}
+.chip.adm-bad{margin-top:6px;border-color:var(--bad);color:var(--bad)}
+.adm-erow>td{background:var(--sf2);padding:0}
+.adm-edit{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;padding:20px}
+.adm-edit section{display:flex;flex-direction:column;align-items:flex-start;min-width:0}
+.adm-edit section .f{width:100%}
+.adm-edit h4{margin:0 0 12px;font:600 .95rem var(--fd)}
+.adm-note{margin:0 0 12px;font-size:.82rem;color:var(--mu)}
+.adm-warn{color:var(--bad);font-weight:600}
+.adm-err,.adm-close{grid-column:1/-1;margin:0}
+.adm-close{display:flex;justify-content:flex-end}
+@media (max-width:900px){.adm-edit{grid-template-columns:1fr}}
+.adm-row code,.adm-row td:nth-child(2) small,.adm-row td:nth-child(5) small{white-space:nowrap}

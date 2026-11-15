@@ -219,5 +219,7 @@ export const adminApi=sb?{
   async clinics(){return must(await sb.rpc('admin_list_orgs'))},
   async plans(){return must(await sb.from('plans').select('name,label,daily_ai_limit').order('daily_ai_limit'))},
   async setClinic(org,plan,override,model,widget){must(await sb.rpc('admin_set_org_ai',{org,p_plan:plan,p_override:override,p_model:model,p_widget:widget}))},
-  async setKey(org,key){must(await sb.rpc('admin_set_model_key',{org,p_key:key}))}
+  async setKey(org,key){must(await sb.rpc('admin_set_model_key',{org,p_key:key}))},
+  async setProvider(org,endpoint,model){must(await sb.rpc('admin_set_org_provider',{org,p_endpoint:endpoint,p_model:model}))},
+  async clearKey(org){must(await sb.rpc('admin_clear_model_key',{org}))}
 }:null;
