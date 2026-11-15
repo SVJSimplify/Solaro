@@ -241,3 +241,48 @@ a.tile:hover,.tile.hot{border-color:var(--coral)}
 .adm-close{display:flex;justify-content:flex-end}
 @media (max-width:900px){.adm-edit{grid-template-columns:1fr}}
 .adm-row code,.adm-row td:nth-child(2) small,.adm-row td:nth-child(5) small{white-space:nowrap}
+.adm-tabs{display:flex;gap:4px;margin:0 0 18px;border-bottom:1px solid var(--ln);overflow-x:auto}
+.adm-tabs button{background:none;border:0;padding:10px 14px;font:600 .9rem var(--ft);color:var(--mu);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
+.adm-tabs button:hover{color:var(--tx)}
+.adm-tabs button.on{color:var(--tx);border-bottom-color:var(--coral6)}
+.sys-head{display:flex;align-items:center;gap:14px}
+.sys-head b{display:block;font:600 1.05rem var(--fd)}.sys-head small{color:var(--mu);font-size:.82rem}
+.sys-dot{width:12px;height:12px;border-radius:50%;flex:none;background:var(--ok)}
+.sys-head.warn .sys-dot{background:#D9922E}.sys-head.bad .sys-dot{background:var(--bad)}
+.chip.sys-ok{border-color:var(--ok);color:var(--ok)}.chip.sys-warn{border-color:#C4801F;color:#A86A12}.chip.sys-bad{border-color:var(--bad);color:var(--bad)}
+.sys-h{margin:24px 0 10px;font:600 1rem var(--fd)}
+.sys-url{flex:1;min-width:0;overflow-wrap:anywhere;padding:8px 10px;border-radius:8px;background:var(--sf2);font-size:.82rem}
+.auth-invite{margin:0 0 16px;padding:10px 12px;border-radius:10px;background:var(--sf2);border:1px solid var(--ln2);font-size:.88rem}
+.team{list-style:none;margin:0;padding:0}
+.team li{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--ln)}
+.team li:first-child{border-top:0}
+.team li>div{flex:1;min-width:0}.team li b{overflow-wrap:anywhere}.team li small{display:block;color:var(--mu);font-size:.8rem}
+.team select{width:auto;min-height:36px;padding:4px 8px}
+.team-h{margin:18px 0 8px;font:600 .9rem var(--fd)}
+.team-link{margin-top:14px;padding:14px;border-radius:12px;background:var(--sf2);border:1px solid var(--ln2)}
+.team-link p{margin:0 0 8px;font-size:.88rem}
+.team-link code{display:block;margin-bottom:10px;padding:8px;border-radius:8px;background:var(--sf);font-size:.78rem;overflow-wrap:anywhere}
+.help-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
+@media (max-width:900px){.help-grid{grid-template-columns:1fr}}
+.faq{border-top:1px solid var(--ln);padding:10px 0}.faq:first-of-type{border-top:0}
+.faq summary{cursor:pointer;font-weight:600}.faq p{margin:8px 0 0;color:var(--mu);font-size:.9rem}
+.help-urgent{margin:0 0 12px;font-size:.85rem;color:var(--bad)}
+.tks{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.tk{border:1px solid var(--ln);border-radius:var(--r-card,14px);background:var(--sf)}
+.tk-head{display:flex;align-items:center;gap:10px;width:100%;padding:14px 16px;background:none;border:0;text-align:left;cursor:pointer;font:inherit;color:inherit}
+.tk-head b{flex:1;min-width:0}.tk-head small{color:var(--mu);font-size:.8rem;white-space:nowrap}
+.chip.tk-open{border-color:#C4801F;color:#A86A12}.chip.tk-answered{border-color:var(--ok);color:var(--ok)}
+.tk-body{padding:0 16px 16px}
+.tk-msg{padding:10px 12px;border-radius:10px;background:var(--sf2);margin-bottom:8px}
+.tk-msg.solara{background:transparent;border:1px solid var(--coral6)}
+.tk-msg small{color:var(--mu);font-size:.78rem}.tk-msg p{margin:4px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.tk-reply textarea{width:100%;margin-bottom:8px}
+.tk-clinic{display:block;font-weight:400;color:var(--mu);font-size:.8rem}.tk-late{color:var(--bad)!important;font-weight:600}
+.setup{margin-bottom:16px}
+.setup-head{display:flex;align-items:flex-start;gap:12px}.setup-head>div{flex:1}.setup-head h3{margin:0 0 4px}
+.setup-bar{height:6px;border-radius:3px;background:var(--ln);overflow:hidden;margin:6px 0 12px}.setup-bar i{display:block;height:100%;background:var(--coral6);transition:width .3s}
+.setup-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.setup-list li{display:flex;align-items:center;gap:10px;font-size:.92rem}
+.setup-list li.done{color:var(--mu)}.setup-list li.done span:not(.setup-tick){text-decoration:line-through}
+.setup-tick{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--ln2);display:grid;place-items:center;flex:none;color:#fff}
+.setup-list li.done .setup-tick{background:var(--ok);border-color:var(--ok)}

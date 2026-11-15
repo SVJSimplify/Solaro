@@ -5,6 +5,9 @@ import {useEffect,useMemo,useState} from 'react';
 import {adminApi} from '../lib/supabasedb';
 import {useToast} from '../lib/hooks';
 import {Icon} from '../lib/ui';
+import Trash from './admin/Trash';
+import Status from './admin/Status';
+import Support from './admin/Support';
 
 // OpenAI-compatible API addresses. "Custom" takes any https address.
 const PROVIDERS=[
@@ -84,15 +87,14 @@ function Editor({c,plans,onSaved,onClose}){
     </div>);
 }
 
-export default function Admin(){
+function Clinics(){
   const [rows,setRows]=useState(null),[plans,setPlans]=useState([]),[err,setErr]=useState(''),[open,setOpen]=useState(null),[q,setQ]=useState('');
   const load=async()=>{try{setRows(await adminApi.clinics())}catch(e){setErr(e.message)}};
   useEffect(()=>{if(!adminApi)return;load();adminApi.plans().then(setPlans).catch(()=>{})},[]);
   const shown=useMemo(()=>{const t=q.trim().toLowerCase();return(rows??[]).filter(c=>!t||c.name.toLowerCase().includes(t)||(c.owner_email||'').toLowerCase().includes(t))},[rows,q]);
   const label=n=>plans.find(p=>p.name===n)?.label??n;
-  if(!adminApi)return<><header><h1>Admin</h1></header><p className="route">Admin needs the live backend.</p></>;
   return(<>
-    <header><h1>Clinics</h1><p className="route">Each clinic has its own plan, AI provider, model and key. Click a clinic to change it.</p></header>
+    <p className="route">Each clinic has its own plan, AI provider, model and key. Click a clinic to change it.</p>
     <div className="toolbar"><label className="search"><Icon n="search" size={18}/><input type="search" placeholder="Search clinic or owner email" aria-label="Search clinics" value={q} onChange={e=>setQ(e.target.value)}/></label></div>
     {err&&<p className="err" role="alert">{err}</p>}
     {rows&&!shown.length&&<div className="empty">{rows.length?'No clinics match.':'No clinics yet.'}</div>}
@@ -113,5 +115,19 @@ export default function Admin(){
           isOpen&&<tr key={c.id+'-e'} className="adm-erow"><td colSpan={7}><Editor c={c} plans={plans} onSaved={load} onClose={()=>setOpen(null)}/></td></tr>]})}</tbody>
       </table>
     </div>}
+  </>);
+}
+
+const TABS=[['clinics','Clinics',Clinics],['status','System status',Status],['support','Support',Support],['deleted','Recently deleted',Trash]];
+export default function Admin(){
+  const [tab,setTab]=useState(()=>new URLSearchParams(location.search).get('tab')||'clinics');
+  const go=t=>{setTab(t);history.replaceState(null,'','/admin'+(t==='clinics'?'':'?tab='+t))};
+  if(!adminApi)return<><header><h1>Admin</h1></header><p className="route">Admin needs the live backend.</p></>;
+  const Body=(TABS.find(t=>t[0]===tab)??TABS[0])[2];
+  return(<>
+    <header><h1>Admin</h1></header>
+    <div className="adm-tabs" role="tablist" aria-label="Admin sections">{TABS.map(([id,label])=>
+      <button key={id} type="button" role="tab" aria-selected={tab===id} className={tab===id?'on':''} onClick={()=>go(id)}>{label}</button>)}</div>
+    <div role="tabpanel"><Body/></div>
   </>);
 }

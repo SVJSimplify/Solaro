@@ -5,6 +5,7 @@ import {useAuth,useTable,useToast,useClinicNow} from '../lib/hooks';
 import {clinicNow,addDays,nice,clock,STATUS,held,open,conflictOf,openSlots,closedOn} from '../lib/avail';
 import {DAYS,slotsFor,dateOf,hoursOn} from '../lib/schedule';
 import {Icon,Empty,ago,useConfirm} from '../lib/ui';
+import Setup from '../lib/Setup';
 
 const M=t=>{const [h,m]=t.split(':').map(Number);return h*60+m};
 const hour=m=>{const h=Math.floor(m/60)%24;return `${h%12||12}${h<12?'am':'pm'}`};
@@ -52,6 +53,8 @@ export default function Today(){
   return(<>
     <header><div><h1>{nice(today)}</h1><p>{shut?'The clinic is closed today.':day.length?`${day.length} appointment${day.length===1?'':'s'} today, ${left} still to come.`:'No appointments today.'}</p></div>
       <span className="hdr-actions"><Link className="btn" to="/bookings?new=1"><Icon n="plus" size={18}/>New booking</Link></span></header>
+
+    <Setup/>
 
     <section className={'todo'+(todo.length?'':' clear')} aria-label="Waiting on you">
       {todo.length?todo.map(([n,ic,label,to])=><Link key={label} to={to} className="todo-i"><Icon n={ic} size={18}/><b>{n}</b><span>{label}</span><Icon n="right" size={14}/></Link>)

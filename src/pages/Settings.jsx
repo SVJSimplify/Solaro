@@ -1,5 +1,6 @@
 import {useState,useEffect} from 'react';
 import Autonomy from '../lib/Autonomy';
+import Team from '../lib/Team';
 import {db} from '../lib/db';import {useAuth,useTable,useToast} from '../lib/hooks';import {normalizePhone} from '../lib/phone';import {Field,PhoneField,problem,phoneProblem} from '../lib/fields';
 
 export default function Settings(){
@@ -45,5 +46,23 @@ export default function Settings(){
       <p className="route">Customise the chat button, copy your code and check it's live on your site.</p>
       <a className="btn sm" href="/install">Set up website chat</a>
     </section>}
+    <Team/>
+    {me.role==='owner'&&<ExportCard/>}
   </>);
+}
+
+/* Owner-only: download everything the clinic has in Solara (bookings, patients' chats, knowledge, settings, activity). */
+function ExportCard(){
+  const toast=useToast(),[busy,setBusy]=useState(false);
+  const run=async()=>{setBusy(true);try{
+    const data=await db.exportClinic(),name=(data.clinic?.name||'clinic').replace(/[^\w-]+/g,'-').toLowerCase();
+    const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
+    const a=Object.assign(document.createElement('a'),{href:url,download:`solara-${name}-${new Date().toISOString().slice(0,10)}.json`});
+    document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('Export downloaded');
+  }catch(e){toast(e.message)}finally{setBusy(false)}};
+  return(<section className="card st" style={{maxWidth:520,marginTop:16}}>
+    <h3>Your data</h3>
+    <p className="route">Download everything your clinic has in Solara as one file: bookings, chats, knowledge, settings and activity. It contains patient details, so store it securely.</p>
+    <button type="button" className="btn sm" onClick={run} disabled={busy}>{busy?'Preparing…':'Download all data'}</button>
+  </section>);
 }

@@ -1,9 +1,11 @@
 import {useState} from 'react';
 import {db} from '../lib/db';import {Logo} from '../lib/ui';import {Field,problem} from '../lib/fields';
 import {passwordProblem,authMessage,PASSWORD_HINT} from '../lib/password';
+import {pendingJoin,takeJoinError} from '../lib/join';
 
 export default function Auth({onAuth}){
-  const [sign,setSign]=useState(false),[f,setF]=useState({em:'',pw:'',bn:''}),[err,setErr]=useState(''),[shake,setShake]=useState(false),[busy,setBusy]=useState(false),[show,setShow]=useState(false);
+  const invited=!!pendingJoin();
+  const [sign,setSign]=useState(false),[f,setF]=useState({em:'',pw:'',bn:''}),[err,setErr]=useState(()=>takeJoinError()||''),[shake,setShake]=useState(false),[busy,setBusy]=useState(false),[show,setShow]=useState(false);
   const set=k=>v=>setF({...f,[k]:v});
   const bad=m=>{setErr(m);setShake(true)};
   const forgot=async()=>{const em=f.em.trim();if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em))return bad('Enter your email first, then choose Forgot password.');
@@ -11,7 +13,7 @@ export default function Auth({onAuth}){
   const submit=async e=>{
     e.preventDefault();const em=f.em.trim(),bn=f.bn.trim();
     // New accounts must meet the password policy; sign-in accepts whatever the account already has.
-    const wrong=(sign&&problem('business',bn,{label:'Business name'}))||problem('email',em,{label:'Email'})||problem('password',f.pw,{label:'Password',min:1})||(sign&&passwordProblem(f.pw,em));
+    const wrong=(sign&&!invited&&problem('business',bn,{label:'Business name'}))||problem('email',em,{label:'Email'})||problem('password',f.pw,{label:'Password',min:1})||(sign&&passwordProblem(f.pw,em));
     setShow(true);if(wrong)return bad(wrong);
     setBusy(true);
     try{onAuth(sign?await db.signUp(em,f.pw,bn):await db.signIn(em,f.pw))}catch(x){bad(authMessage(x,sign?'signup':'signin'));setBusy(false)}
@@ -19,9 +21,10 @@ export default function Auth({onAuth}){
   return(
     <div id="auth"><form className={'card'+(shake?' shake':'')} onSubmit={submit} noValidate onAnimationEnd={e=>e.target===e.currentTarget&&setShake(false)}>
       <Logo/>
-      <h2>{sign?'Create your front desk':'Welcome back'}</h2>
+      <h2>{sign?(invited?'Join your clinic':'Create your front desk'):'Welcome back'}</h2>
       <p>{sign?'Takes a minute. No card needed.':'Sign in to your front desk.'}</p>
-      {sign&&<Field id="bn" label="Business name" kind="business" value={f.bn} onChange={set('bn')} placeholder="Riverside Family Dental" autoComplete="organization" show={show}/>}
+      {invited&&<p className="auth-invite" role="status">You've been invited to join a clinic. {sign?'Create your account':'Sign in'} with the email address the invite was sent to.</p>}
+      {sign&&!invited&&<Field id="bn" label="Business name" kind="business" value={f.bn} onChange={set('bn')} placeholder="Riverside Family Dental" autoComplete="organization" show={show}/>}
       <Field id="em" label="Email" kind="email" value={f.em} onChange={set('em')} autoComplete="email" show={show}/>
       <Field id="pw" label="Password" kind="password" min={1} value={f.pw} onChange={set('pw')} autoComplete={sign?'new-password':'current-password'} hint={sign?PASSWORD_HINT:''} show={show}/>
       <p className="err" role="alert">{err}</p>

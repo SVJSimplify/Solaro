@@ -7,7 +7,7 @@ import {buildRegistry,runToolLoop,executeTool} from '../_shared/tools/index.js';
 import {publicAdapter} from '../_shared/tools/supabaseAdapter.js';
 import {bookingForm,wantsBooking,wantsManage} from '../_shared/tools/front.js';
 import {normalizePhone,countryForTimeZone} from '../_shared/tools/phone.js';
-import {logEvent,allow} from '../_shared/ops.js';
+import {logEvent,allow,recordOps} from '../_shared/ops.js';
 import {withCors,clientIp} from '../_shared/http.js';
 import {publicSystem,checkAppointmentClaim,infoChangedNote} from '../_shared/tools/prompt.js';
 import {buildMessages,triage,cleanForm,hasHealthSignal,REASONS,FALLBACK,callModelRaw} from '../_shared/agent.js';
@@ -225,7 +225,7 @@ Deno.serve(withCors(async req=>{
           system:publicSystem({org:org.data?.name??'this clinic',tone:st.data?.tone??'friendly',greeting:st.data?.greeting??'',timeZone})+changed,messages,checkClaim:checkAppointmentClaim}),40000);
         reply=res.reply;
         logEvent('widget-chat',{org:orgId,action:'message',outcome:res.stopped??'ok',rechecked:!!res.rechecked,ms:Date.now()-t0,tools:res.calls.map((c:any)=>c.ok?c.name:c.name+':'+c.code),attempts});
-      }catch(e){logEvent('widget-chat',{org:orgId,action:'message',outcome:'model_failed',ms:Date.now()-t0,attempts,error:String(e).slice(0,200)});reply=FALLBACK;out.handoff=true;out.reason='error'}
+      }catch(e){await recordOps(svc,attempts.some((a:any)=>a.status===429)?'ai_rate_limited':'ai_failed',orgId,String(e).slice(0,120));logEvent('widget-chat',{org:orgId,action:'message',outcome:'model_failed',ms:Date.now()-t0,attempts,error:String(e).slice(0,200)});reply=FALLBACK;out.handoff=true;out.reason='error'}
     }
     // A health_risk label must be backed by the visitor's own words.
     if(out.reason==='health_risk'&&!hasHealthSignal(text))out.reason='other';

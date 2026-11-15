@@ -2,7 +2,7 @@
 import {createClient} from 'npm:@supabase/supabase-js@2';
 import {orgProvider} from '../_shared/provider.ts';
 import {postChat} from '../_shared/agent.js';
-import {logEvent,allow} from '../_shared/ops.js';
+import {logEvent,allow,recordOps} from '../_shared/ops.js';
 import {withCors,clientIp} from '../_shared/http.js';
 
 const cors={'Content-Type':'application/json'};   // CORS and safety headers are set by withCors
@@ -50,5 +50,5 @@ Deno.serve(withCors(async req=>{
     const j=await postChat(p,{model:p.model,...payload},{onAttempt:a=>attempts.push(a)});
     logEvent('llm-proxy',{org:orgId,outcome:'ok',ms:Date.now()-t0,attempts});
     return new Response(JSON.stringify(j),{status:200,headers:{...cors,'Content-Type':'application/json'}});
-  }catch(e){logEvent('llm-proxy',{org:orgId,outcome:'model_failed',ms:Date.now()-t0,attempts,error:String(e).slice(0,200)});return (e as any)?.status===429?J({error:'The AI provider is at its rate limit right now. Try again in a minute.'},429):J({error:'Model unavailable'},502)}
+  }catch(e){await recordOps(svc,(e as any)?.status===429?'ai_rate_limited':'ai_failed',orgId,String(e).slice(0,120));logEvent('llm-proxy',{org:orgId,outcome:'model_failed',ms:Date.now()-t0,attempts,error:String(e).slice(0,200)});return (e as any)?.status===429?J({error:'The AI provider is at its rate limit right now. Try again in a minute.'},429):J({error:'Model unavailable'},502)}
 }));

@@ -1,3 +1,4 @@
+import {pendingJoin,clearJoin,setJoinError} from './join';
 import {createClient} from '@supabase/supabase-js';
 import {respondWith} from './respond';
 import {DEFAULT_DOCTORS,DEFAULT_SERVICES,withClinic} from './schedule';
@@ -65,6 +66,13 @@ if(typeof window!=='undefined'){
   addEventListener('visibilitychange',wake);addEventListener('focus',wake);addEventListener('online',()=>{lastWake=0;wake()});
 }
 async function enter(user){
+  // An invited person joins the clinic that invited them instead of getting a new clinic of their own.
+  const token=pendingJoin();
+  if(token){
+    const {error}=await sb.rpc('accept_invite',{p_token:token});
+    clearJoin();
+    if(error){setJoinError(error.message);await sb.auth.signOut();const e=new Error(error.message);e.join=true;throw e}
+  }
   const biz=user.user_metadata?.biz||'My business';
   let m=must(await sb.from('members').select('org_id, role, organizations(name,timezone)').eq('user_id',user.id).order('created_at'));
   if(!m.length){const id=must(await sb.rpc('create_org',{org_name:biz}));m=[{org_id:id,role:'owner',organizations:{name:biz,timezone:null}}]}
@@ -187,6 +195,20 @@ export const remote={
   async clinicHours(){return must(await sb.from('settings').select('hours').eq('org_id',org).maybeSingle())?.hours??{}},
   async saveClinicHours(_u,h){const r=must(await sb.rpc('set_clinic_hours',{p_org:org,p_hours:h}));ping('settings');ping('kb');ping('audit');return r},
   /* Logs: kind activity|messages|handoffs; ids, or a period [from,to). Returns how many were removed. */
+  // Team: members, invites (join links), roles.
+  async team(){return must(await sb.rpc('team_list',{p_org:org}))},
+  async invite(email,role){return must(await sb.rpc('team_invite',{p_org:org,p_email:email,p_role:role}))},
+  async revokeInvite(id){must(await sb.rpc('team_revoke_invite',{p_id:id}))},
+  async setRole(user,role){must(await sb.rpc('team_set_role',{p_org:org,p_user:user,p_role:role}))},
+  async removeMember(user){must(await sb.rpc('team_remove',{p_org:org,p_user:user}))},
+  // Support tickets with Solara, and the setup checklist.
+  async tickets(){return must(await sb.rpc('support_mine',{p_org:org}))??[]},
+  async newTicket(subject,category,body){return must(await sb.rpc('support_create',{p_org:org,p_subject:subject,p_category:category,p_body:body}))},
+  async replyTicket(id,body){must(await sb.rpc('support_reply',{p_ticket:id,p_body:body,p_as_solara:false}))},
+  async ticketStatus(id,status){must(await sb.rpc('support_set_status',{p_ticket:id,p_status:status}))},
+  async setup(){return must(await sb.rpc('setup_status',{p_org:org}))??[]},
+  // Everything that belongs to the clinic, as one JSON file (owner only, audited).
+  async exportClinic(){return must(await sb.rpc('export_clinic',{p_org:org}))},
   async deleteLogs(_u,kind,{ids,from,to}={}){const n=must(await sb.rpc('delete_logs',{p_org:org,p_kind:kind,p_ids:ids??null,p_from:from??null,p_to:to??null}));ping('audit');ping('outbox');ping('alerts');return n},
   // Websites allowed to show this clinic's chat (enforced by the browser through the chat page's frame-ancestors policy).
   async widgetOrigins(){return must(await sb.rpc('widget_origins_get',{p_org:org}))??[]},
@@ -221,5 +243,12 @@ export const adminApi=sb?{
   async setClinic(org,plan,override,model,widget){must(await sb.rpc('admin_set_org_ai',{org,p_plan:plan,p_override:override,p_model:model,p_widget:widget}))},
   async setKey(org,key){must(await sb.rpc('admin_set_model_key',{org,p_key:key}))},
   async setProvider(org,endpoint,model){must(await sb.rpc('admin_set_org_provider',{org,p_endpoint:endpoint,p_model:model}))},
-  async clearKey(org){must(await sb.rpc('admin_clear_model_key',{org}))}
+  async clearKey(org){must(await sb.rpc('admin_clear_model_key',{org}))},
+  async trash(){return must(await sb.rpc('admin_trash',{p_days:30}))??[]},
+  async restore(batch){return must(await sb.rpc('admin_restore_batch',{p_batch:batch}))},
+  async health(){return must(await sb.rpc('admin_health'))},
+  async resolveAlert(id){must(await sb.rpc('admin_resolve_alert',{p_id:id}))},
+  async support(){return must(await sb.rpc('admin_support',{p_status:null}))??[]},
+  async answer(id,body){must(await sb.rpc('support_reply',{p_ticket:id,p_body:body,p_as_solara:true}))},
+  async ticketStatus(id,status){must(await sb.rpc('support_set_status',{p_ticket:id,p_status:status}))}
 }:null;

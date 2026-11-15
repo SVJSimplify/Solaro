@@ -57,6 +57,10 @@ export const local=(()=>{
    async settings(uid){return st().settings[uid]||{}},
    async clinicHours(uid){return st().settings[uid]?.hours??{1:{start:'09:00',end:'17:00'},2:{start:'09:00',end:'17:00'},3:{start:'09:00',end:'17:00'},4:{start:'09:00',end:'17:00'},5:{start:'09:00',end:'17:00'}}},
    async saveClinicHours(uid,h){const s=st();s.settings[uid]={...s.settings[uid],hours:h};S(s);return h},
+   async team(){return{members:[],invites:[]}},
+   async tickets(){return[]},
+   async setup(){return[]},
+   async exportClinic(uid){return{format:'solara-export-v1',exported_at:new Date().toISOString(),tables:st()}},
    async deleteLogs(uid,kind,{ids,from,to}={}){const s=st(),k={activity:'audit',messages:'outbox',handoffs:'alerts'}[kind],t=x=>x.at??x.created??0,before=s[k].length;
      s[k]=s[k].filter(x=>!((!ids||ids.includes(x.id))&&(!from||t(x)>=Date.parse(from))&&(!to||t(x)<Date.parse(to))&&(kind!=='messages'||['sent','failed'].includes(x.status))));S(s);return before-s[k].length},
    async removeInstall(){},

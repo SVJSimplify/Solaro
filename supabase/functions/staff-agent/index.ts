@@ -6,7 +6,7 @@ import {buildRegistry,runToolLoop} from '../_shared/tools/index.js';
 import {supabaseAdapter} from '../_shared/tools/supabaseAdapter.js';
 import {callModelRaw} from '../_shared/agent.js';
 import {staffSystem,SETUP_GUIDE} from '../_shared/tools/prompt.js';
-import {logEvent,allow} from '../_shared/ops.js';
+import {logEvent,allow,recordOps} from '../_shared/ops.js';
 import {withCors,clientIp} from '../_shared/http.js';
 
 const cors={'Content-Type':'application/json'};   // CORS and safety headers are set by withCors
@@ -54,5 +54,5 @@ Deno.serve(withCors(async req=>{
     }),body.mode==='setup'?110000:50000);
     logEvent('staff-agent',{org:orgId,requestId,mode:body.mode??'chat',outcome:res.stopped??'ok',ms:Date.now()-t0,tools:res.calls.map((c:any)=>c.ok?c.name:c.name+':'+c.code),attempts});
     return J({reply:res.reply,calls:res.calls,stopped:res.stopped,confirmations:out.confirmations});
-  }catch(e){const t=String(e).includes('timeout');logEvent('staff-agent',{org:orgId,outcome:t?'timeout':'failed',error:String(e).slice(0,200)});return J({error:t?'The assistant took too long. Try again.':'The assistant is unavailable. Try again shortly.'},t?504:502)}
+  }catch(e){const t=String(e).includes('timeout');await recordOps(svc,String(e).includes(' 429')?'ai_rate_limited':'ai_failed',orgId,String(e).slice(0,120));logEvent('staff-agent',{org:orgId,outcome:t?'timeout':'failed',error:String(e).slice(0,200)});return J({error:t?'The assistant took too long. Try again.':'The assistant is unavailable. Try again shortly.'},t?504:502)}
 }));

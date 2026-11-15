@@ -7,6 +7,10 @@ import Widget from './pages/Widget';import Admin from './pages/Admin';import Aut
 import Inbox from './pages/Inbox';import Demo from './pages/Demo';import Alerts from './pages/Alerts';import Customers from './pages/Customers';import Activity from './pages/Activity';import Bookings from './pages/Bookings';
 import Insights from './pages/Insights';import Today from './pages/Today';import {Recover,ChooseClinic} from './pages/Auth';import Knowledge from './pages/Knowledge';import Install from './pages/Install';
 import Settings from './pages/Settings';
+import Help from './pages/Help';
+import {captureJoin} from './lib/join';
+
+captureJoin();
 
 /* Sends the user to onboarding until a hand-off number and at least one answer exist. */
 function Gate({children}){
@@ -45,7 +49,7 @@ export default function App(){
           <Route index element={<Navigate to="/today" replace/>}/>
           <Route path="today" element={<Today/>}/>
           <Route path="inbox" element={<Inbox/>}/><Route path="alerts" element={<Alerts/>}/><Route path="customers" element={<Customers/>}/><Route path="activity" element={<Activity/>}/><Route path="bookings" element={<Bookings/>}/><Route path="insights" element={<Insights/>}/>
-          <Route path="knowledge" element={<Knowledge/>}/><Route path="settings" element={<Settings/>}/><Route path="install" element={<Install/>}/><Route path="admin" element={user.platformAdmin?<Admin/>:<Navigate to="/inbox" replace/>}/>
+          <Route path="knowledge" element={<Knowledge/>}/><Route path="settings" element={<Settings/>}/><Route path="install" element={<Install/>}/><Route path="help" element={<Help/>}/><Route path="admin" element={user.platformAdmin?<Admin/>:<Navigate to="/inbox" replace/>}/>
           <Route path="*" element={<Navigate to="/inbox" replace/>}/>
         </Route>
       </Routes>

@@ -18,6 +18,7 @@ export function passwordProblem(pw,email=''){
 /* Server messages that would reveal whether an email has an account are replaced with neutral ones. */
 export function authMessage(err,kind){
   const m=String(err?.message||err||'');
+  if(err?.join)return m;   // invite problems are about the invite, not the account
   if(/rate limit|too many|429/i.test(m))return'Too many attempts. Please wait a few minutes and try again.';
   if(/weak|pwned|leaked|compromised/i.test(m))return'That password has appeared in a data breach or is too weak. Please choose another.';
   if(kind==='signin')return'Email or password is incorrect, or the email has not been confirmed yet.';

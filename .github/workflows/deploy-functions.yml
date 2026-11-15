@@ -52,6 +52,6 @@ jobs:
             supabase functions deploy "$fn" --project-ref "$PROJECT_REF" --use-api --yes
           done
           # Public (website chat) and scheduled: these check their own token instead.
-          for fn in widget-chat outbox-dispatch; do
+          for fn in widget-chat outbox-dispatch health; do
             supabase functions deploy "$fn" --project-ref "$PROJECT_REF" --use-api --yes --no-verify-jwt
           done

@@ -5,6 +5,11 @@ export function logEvent(fn,fields={}){
   try{console.log(JSON.stringify({ts:new Date().toISOString(),fn,...fields}))}catch{/* logging must never break a request */}
 }
 
+/* Records an operational failure for the health checks (kind + short reason, never patient data). Never throws. */
+export async function recordOps(svc,kind,orgId=null,detail=''){
+  try{await svc.from('ops_events').insert({kind,org_id:orgId,detail:String(detail).slice(0,200)})}catch{/* monitoring must never break a request */}
+}
+
 /* True when the request is within the limit. One atomic database hit per call (see hit_rate_limit).
    If the limiter itself is unavailable the request is allowed and the failure is logged: a limiter outage must not take the
    front desk down. The daily AI limit and the per-chat message limit still apply independently. */
