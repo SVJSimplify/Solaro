@@ -503,3 +503,4 @@ main{overflow-x:hidden;overscroll-behavior-y:contain}
   #app main:has(.inbox.reading){padding-bottom:calc(61px + var(--sab))}
   #app:has(.send input:focus) main:has(.inbox.reading){padding-bottom:0}
 }
+.list-h .seg{display:flex;width:100%}.list-h .seg .btn{flex:1 1 auto;padding:5px 8px}
