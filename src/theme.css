@@ -504,3 +504,14 @@ main{overflow-x:hidden;overscroll-behavior-y:contain}
   #app:has(.send input:focus) main:has(.inbox.reading){padding-bottom:0}
 }
 .list-h .seg{display:flex;width:100%}.list-h .seg .btn{flex:1 1 auto;padding:5px 8px}
+/* Today by doctor: a timeline where there is room, a plain list per doctor on phones (no sideways scrolling) */
+.doc-day{display:none}
+@media(max-width:820px){
+  .tl-wrap,.tl-wrap+.doc-day~.legend{display:none}
+  .doc-day{display:grid;gap:4px}
+  .doc-day-i{border-top:1px solid var(--ln);padding-top:12px;margin-top:4px}.doc-day-i:first-child{border-top:0;padding-top:0;margin-top:0}
+  .doc-day-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+  .doc-day-h b{font:600 .95rem var(--fd);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .doc-day-h small{flex:none;color:var(--mu);font-size:.8rem}.doc-day-h small a{font-weight:600}
+  .doc-day .agenda{margin-top:6px}.doc-day .agenda button{grid-template-columns:64px minmax(0,1fr) auto;padding:9px 2px}
+}

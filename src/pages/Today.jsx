@@ -9,6 +9,7 @@ import Setup from '../lib/Setup';
 
 const M=t=>{const [h,m]=t.split(':').map(Number);return h*60+m};
 const hour=m=>{const h=Math.floor(m/60)%24;return `${h%12||12}${h<12?'am':'pm'}`};
+const hm=m=>{const h=Math.floor(m/60)%24,mm=m%60;return `${h%12||12}${mm?':'+String(mm).padStart(2,'0'):''}${h<12?'am':'pm'}`};
 
 /* The clinic's day on one screen: what needs a decision, who is in and when, and what is coming.
    Everything is read from the same records the other pages edit, and every item opens the place where it is handled. */
@@ -42,6 +43,14 @@ export default function Today(){
   const hours=[];for(let m=t0;m<=t1;m+=60)hours.push(m);
   const week=Array.from({length:7},(_,i)=>{const d=addDays(today,i);return{d,n:rows.filter(b=>held(b)&&dateOf(b.when)===d).length,shut:closedOn(d,closed,leave)}}),peak=Math.max(1,...week.map(w=>w.n));
 
+  // One row per doctor, shared by the timeline (wide screens) and the list (phones).
+  const lanes=docs.map(d=>{
+    const hrs=hoursOn(d,today),inToday=slotsFor(d,today).length>0,mine=day.filter(b=>b.doctor_id===d.id),away=leave.filter(e=>e.date===today&&e.doctor_id===d.id);
+    const free=inToday&&!shut?openSlots([d],today,rows,leave,closed,{now}).length:0;
+    const status=shut?'Closed':!inToday?'Not in today':away.some(e=>e.start==null)?'Away':free?<Link to={`/bookings?view=day&date=${today}&doctor=${d.id}`}>{free} open</Link>:'Full';
+    return{d,hrs,inToday,mine,away,status};
+  });
+
   const decide=async(b,ok)=>{
     if(!ok&&!await confirm({title:`Decline ${b.name}'s request?`,body:`They asked for ${nice(b.when)}. They will be told this time is not available.`,confirm:'Decline request',cancel:'Keep it',danger:true}))return;
     setBusy(true);
@@ -66,11 +75,9 @@ export default function Today(){
       {!docs.length?<Empty icon="people" title="No doctors yet">Add your doctors in Knowledge and their day appears here.</Empty>
       :<div className="tl-wrap"><div className="tl" style={{'--cols':hours.length-1}}>
         <div className="tl-row tl-axis"><span className="tl-name"/><div className="tl-lane">{hours.map(m=><i key={m} style={{left:pos(m)}}>{hour(m)}</i>)}</div></div>
-        {docs.map(d=>{
-          const hrs=hoursOn(d,today),inToday=slotsFor(d,today).length>0,mine=day.filter(b=>b.doctor_id===d.id),away=leave.filter(e=>e.date===today&&e.doctor_id===d.id);
-          const free=inToday&&!shut?openSlots([d],today,rows,leave,closed,{now}).length:0;
-          return(<div key={d.id} className="tl-row">
-            <span className="tl-name"><b>{d.name}</b><small>{shut?'Closed':!inToday?'Not in today':away.some(e=>e.start==null)?'Away':free?<Link to={`/bookings?view=day&date=${today}&doctor=${d.id}`}>{free} open</Link>:'Full'}</small></span>
+        {lanes.map(({d,hrs,inToday,mine,away,status})=>(
+          <div key={d.id} className="tl-row">
+            <span className="tl-name"><b>{d.name}</b><small>{status}</small></span>
             <div className="tl-lane">
               {inToday&&!shut&&<span className="tl-work" style={span(hrs.start,hrs.end)}/>}
               {away.map(e=><span key={e.id} className="tl-away" style={span(e.start??hrs?.start??M(d.start),e.end??hrs?.end??M(d.end))} title={e.note||'Away'}>Away</span>)}
@@ -78,9 +85,13 @@ export default function Today(){
                 title={`${clock(b.when)} · ${b.name} · ${b.service||'appointment'} · ${STATUS[b.status]}`} aria-label={`${clock(b.when)}, ${b.name}, ${STATUS[b.status]}`}><span>{b.name}</span></button>)}
               {nowMin>=t0&&nowMin<=t1&&<span className="tl-now" style={{left:pos(nowMin)}} aria-hidden="true"/>}
             </div>
-          </div>);
-        })}
+          </div>))}
       </div></div>}
+      {docs.length>0&&<div className="doc-day">{lanes.map(({d,hrs,inToday,mine,status})=>(
+        <div key={d.id} className="doc-day-i">
+          <div className="doc-day-h"><b>{d.name}</b><small>{status}{inToday&&!shut&&hrs?<> · {hm(hrs.start)} to {hm(hrs.end)}</>:null}</small></div>
+          {mine.length>0&&<ul className="agenda">{mine.map(b=><li key={b.id}><button onClick={()=>openAppt(b)}><time>{clock(b.when)}</time><b>{b.name}</b><small>{b.service||'Appointment'}{b.duration?` · ${b.duration} min`:''}</small><span className={'chip '+b.status}>{STATUS[b.status]}</span></button></li>)}</ul>}
+        </div>))}</div>}
       <p className="legend"><span><i className="sw booked"/>Confirmed</span><span><i className="sw requested"/>Requested</span><span><i className="sw completed"/>Completed</span><span><i className="sw no_show"/>No-show</span><span><i className="sw nowl"/>Now</span></p>
     </section>
 
