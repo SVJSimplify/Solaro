@@ -7,13 +7,14 @@ import {supabaseAdapter} from '../_shared/tools/supabaseAdapter.js';
 import {callModelRaw} from '../_shared/agent.js';
 import {staffSystem,SETUP_GUIDE} from '../_shared/tools/prompt.js';
 import {logEvent,allow} from '../_shared/ops.js';
+import {withCors,clientIp} from '../_shared/http.js';
 
-const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type'};
+const cors={'Content-Type':'application/json'};   // CORS and safety headers are set by withCors
 const J=(b:unknown,s=200)=>new Response(JSON.stringify(b),{status:s,headers:{...cors,'Content-Type':'application/json'}});
 const registry=buildRegistry();
 const withTimeout=<T,>(p:Promise<T>,ms:number)=>Promise.race([p,new Promise<T>((_,rej)=>setTimeout(()=>rej(new Error('timeout')),ms))]);
 
-Deno.serve(async req=>{
+Deno.serve(withCors(async req=>{
   if(req.method==='OPTIONS')return new Response('ok',{headers:cors});
   if(req.method!=='POST')return J({error:'POST only'},405);
 
@@ -54,4 +55,4 @@ Deno.serve(async req=>{
     logEvent('staff-agent',{org:orgId,requestId,mode:body.mode??'chat',outcome:res.stopped??'ok',ms:Date.now()-t0,tools:res.calls.map((c:any)=>c.ok?c.name:c.name+':'+c.code),attempts});
     return J({reply:res.reply,calls:res.calls,stopped:res.stopped,confirmations:out.confirmations});
   }catch(e){const t=String(e).includes('timeout');logEvent('staff-agent',{org:orgId,outcome:t?'timeout':'failed',error:String(e).slice(0,200)});return J({error:t?'The assistant took too long. Try again.':'The assistant is unavailable. Try again shortly.'},t?504:502)}
-});
+}));

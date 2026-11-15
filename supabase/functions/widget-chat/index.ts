@@ -8,10 +8,11 @@ import {publicAdapter} from '../_shared/tools/supabaseAdapter.js';
 import {bookingForm,wantsBooking,wantsManage} from '../_shared/tools/front.js';
 import {normalizePhone,countryForTimeZone} from '../_shared/tools/phone.js';
 import {logEvent,allow} from '../_shared/ops.js';
+import {withCors,clientIp} from '../_shared/http.js';
 import {publicSystem,checkAppointmentClaim,infoChangedNote} from '../_shared/tools/prompt.js';
 import {buildMessages,triage,cleanForm,hasHealthSignal,REASONS,FALLBACK,callModelRaw} from '../_shared/agent.js';
 
-const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type'};
+const cors={'Content-Type':'application/json'};   // CORS and safety headers are set by withCors
 const J=(b:unknown,s=200)=>new Response(JSON.stringify(b),{status:s,headers:{...cors,'Content-Type':'application/json'}});
 const MSG_PER_MINUTE=10;
 const registry=buildRegistry();
@@ -31,7 +32,7 @@ async function sendSms(to:string,body:string){
 }
 const nice=(when:string)=>{const [d,t]=when.split(/[ T]/);return `${new Date(d+'T00:00:00Z').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',timeZone:'UTC'})} at ${t}`};
 
-Deno.serve(async req=>{
+Deno.serve(withCors(async req=>{
   if(req.method==='OPTIONS')return new Response('ok',{headers:cors});
   if(req.method!=='POST')return J({error:'POST only'},405);
 
@@ -39,13 +40,20 @@ Deno.serve(async req=>{
   try{body=await req.json()}catch{return J({error:'Invalid JSON'},400)}
   const svc=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
+  // 0. Per-IP limits, before any other database work, so one client cannot fan out across many chats.
+  const ip=clientIp(req),polling=body?.action==='poll';
+  if(!await allow(svc,(polling?'widget:ip:poll:':'widget:ip:act:')+ip,polling?240:60,60)){
+    logEvent('widget-chat',{action:String(body?.action??'message'),outcome:'ip_rate_limited'});
+    return J({error:'Please wait a moment before trying again.'},429);
+  }
+
   // 1. The chat session must match its token.
   const cid=String(body.conversation_id??''),token=String(body.token??'');
   if(!/^[0-9a-f-]{36}$/i.test(cid)||token.length<32)return J({error:ENDED},401);
   const {data:sess}=await svc.from('widget_sessions').select('token_hash').eq('conversation_id',cid).maybeSingle();
   if(!sess||sess.token_hash!==await sha256hex(token))return J({error:ENDED},401);
   const {data:convo}=await svc.from('conversations').select('id,org_id,customer,status').eq('id',cid).single();
-  if(!convo)return J({error:'Chat not found'},404);
+  if(!convo)return J({error:ENDED},401);
   const orgId=convo.org_id;
   const action=String(body.action??'message');
 
@@ -83,7 +91,7 @@ Deno.serve(async req=>{
 
   // 3a. Send a code. The answer is the same whether or not the number has appointments, so numbers cannot be probed.
   if(body.action==='verify_start'){
-    if(!smsReady())return J({error:'Managing appointments online is not available yet. Type your request in the chat and our team will help.',unavailable:true},503);
+    if(!smsReady())return J({error:'Please type your request in the chat and our team will help you.'},503);
     const phone=normalizePhone(String(body.phone??''),countryForTimeZone(timeZone));
     if(!phone)return J({error:'Please enter a valid US or Indian phone number.'},400);
     const hourAgo=new Date(Date.now()-3600e3).toISOString();
@@ -169,7 +177,8 @@ Deno.serve(async req=>{
     const args={name:String(f.name??''),phone:String(f.phone??''),service:String(f.service??''),when:String(f.when??''),
       ...(typeof f.key==='string'&&f.key.length>=8?{idempotency_key:f.key.slice(0,128)}:{})};
     const env=await executeTool(registry,'request_appointment',args,ctx({}),db);
-    if(!env.ok)return J({error:env.error.message,field:env.error.field??null,alternatives:env.error.alternatives??[]},409);
+    // The picker already lists the services; an error never repeats the list.
+    if(!env.ok)return J({error:env.error.message,field:env.error.field??null,alternatives:env.error.field==='service'?[]:env.error.alternatives??[]},409);
     const r=env.data;
     // The inbox shows who this is from now on, not "Website visitor".
     await svc.from('conversations').update({customer:`${args.name.trim()} · ${r.phone??args.phone}`.slice(0,120)}).eq('id',cid);
@@ -239,4 +248,4 @@ Deno.serve(async req=>{
   }
   return J({reply,handoff:out.handoff,status:out.handoff?'handoff':'handled',form:out.form?cleanForm(out.form):null,manage:!!out.manage&&smsReady(),urgent,
     confirm:!out.handoff&&out.confirm?out.confirm:null});
-});
+}));

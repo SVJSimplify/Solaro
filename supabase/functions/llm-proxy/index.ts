@@ -3,14 +3,15 @@ import {createClient} from 'npm:@supabase/supabase-js@2';
 import {orgProvider} from '../_shared/provider.ts';
 import {postChat} from '../_shared/agent.js';
 import {logEvent,allow} from '../_shared/ops.js';
+import {withCors,clientIp} from '../_shared/http.js';
 
-const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type'};
+const cors={'Content-Type':'application/json'};   // CORS and safety headers are set by withCors
 const J=(b:unknown,s=200)=>new Response(JSON.stringify(b),{status:s,headers:{...cors,'Content-Type':'application/json'}});
 const MAX_CHARS=120000;
 
 export {orgProvider};
 
-Deno.serve(async req=>{
+Deno.serve(withCors(async req=>{
   if(req.method==='OPTIONS')return new Response('ok',{headers:cors});
   if(req.method!=='POST')return J({error:'POST only'},405);
 
@@ -50,4 +51,4 @@ Deno.serve(async req=>{
     logEvent('llm-proxy',{org:orgId,outcome:'ok',ms:Date.now()-t0,attempts});
     return new Response(JSON.stringify(j),{status:200,headers:{...cors,'Content-Type':'application/json'}});
   }catch(e){logEvent('llm-proxy',{org:orgId,outcome:'model_failed',ms:Date.now()-t0,attempts,error:String(e).slice(0,200)});return J({error:'Model unavailable'},502)}
-});
+}));

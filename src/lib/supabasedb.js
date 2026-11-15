@@ -188,6 +188,9 @@ export const remote={
   async saveClinicHours(_u,h){const r=must(await sb.rpc('set_clinic_hours',{p_org:org,p_hours:h}));ping('settings');ping('kb');ping('audit');return r},
   /* Logs: kind activity|messages|handoffs; ids, or a period [from,to). Returns how many were removed. */
   async deleteLogs(_u,kind,{ids,from,to}={}){const n=must(await sb.rpc('delete_logs',{p_org:org,p_kind:kind,p_ids:ids??null,p_from:from??null,p_to:to??null}));ping('audit');ping('outbox');ping('alerts');return n},
+  // Websites allowed to show this clinic's chat (enforced by the browser through the chat page's frame-ancestors policy).
+  async widgetOrigins(){return must(await sb.rpc('widget_origins_get',{p_org:org}))??[]},
+  async setWidgetOrigins(_u,list){const r=must(await sb.rpc('set_widget_origins',{p_org:org,p_origins:list}));ping('audit');return r},
   async removeInstall(_u,origin){must(await sb.from('widget_installs').delete().eq('org_id',org).eq('origin',origin))},
   async saveSettings(_u,v){must(await sb.from('settings').upsert({org_id:org,greeting:v.greeting,tone:v.tone,handoff_phone:v.handoff}));ping()},
   /* Appointment actions. Each is one transaction on the server: the change, the audit record and the patient's message. */

@@ -52,6 +52,8 @@ export const local=(()=>{
    async widgetKey(){return '00000000-0000-4000-8000-000000000000'},
    async widgetKeyRotate(){return crypto.randomUUID()},
    async widgetInstalls(){return []},
+   async widgetOrigins(){return []},
+   async setWidgetOrigins(_u,list){return list},
    async settings(uid){return st().settings[uid]||{}},
    async clinicHours(uid){return st().settings[uid]?.hours??{1:{start:'09:00',end:'17:00'},2:{start:'09:00',end:'17:00'},3:{start:'09:00',end:'17:00'},4:{start:'09:00',end:'17:00'},5:{start:'09:00',end:'17:00'}}},
    async saveClinicHours(uid,h){const s=st();s.settings[uid]={...s.settings[uid],hours:h};S(s);return h},

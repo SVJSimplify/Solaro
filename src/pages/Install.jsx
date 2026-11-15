@@ -12,22 +12,34 @@ const PLATFORMS={
   shopify:{name:'Shopify',steps:['Open Online Store → Themes → … → Edit code.','Open layout/theme.liquid.','Paste the code just before </body> and click Save.']},
   gtm:{name:'Google Tag Manager',steps:['Create a new tag of type "Custom HTML".','Paste the code and set the trigger to "All Pages".','Save, then Submit/Publish the container.']},
 };
+// "www.clinic.com/contact" → "https://www.clinic.com"
+const toOrigin=v=>{const t=v.trim();if(!t)return'';try{return new URL(/^https?:\/\//i.test(t)?t:'https://'+t).origin.toLowerCase()}catch{return null}};
 const ago=t=>{const m=Math.round((Date.now()-Date.parse(t))/6e4);return m<2?'just now':m<60?`${m} min ago`:m<1440?`${Math.round(m/60)} h ago`:`${Math.round(m/1440)} d ago`};
 
 export default function Install(){
   const {user:me}=useAuth(),toast=useToast();
   const [label,setLabel]=useState('Chat with us'),[color,setColor]=useState('#D96F54'),[side,setSide]=useState('right');
   const [wkey,setWkey]=useState(null),[pf,setPf]=useState('html'),[sites,setSites]=useState(undefined),[checking,setChecking]=useState(false);
+  const [origins,setOrigins]=useState(null),[site,setSite]=useState(''),[saving,setSaving]=useState(false),[sri,setSri]=useState(null);
   const code=useMemo(()=>{
-    const a=[`src="${location.origin}/embed.js"`,`data-key="${wkey}"`];
+    // Pinned, integrity-checked script when the build published one; the legacy path otherwise (local development).
+    const a=sri?[`src="${location.origin}${sri.src}"`,`integrity="${sri.integrity}"`,'crossorigin="anonymous"',`data-key="${wkey}"`]
+      :[`src="${location.origin}/embed.js"`,`data-key="${wkey}"`];
     const l=label.trim().replace(/["<>&]/g,'');
     if(l&&l!=='Chat with us')a.push(`data-label="${l}"`);
     if(color.toLowerCase()!=='#d96f54')a.push(`data-color="${color}"`);
     if(side==='left')a.push('data-position="left"');
     return `<script ${a.join(' ')} async></script>`;
-  },[label,color,side,wkey]);
+  },[label,color,side,wkey,sri]);
   const check=async()=>{setChecking(true);try{setSites(await db.widgetInstalls())}finally{setChecking(false)}};
-  useEffect(()=>{check();setWkey(null);db.widgetKey().then(setWkey).catch(()=>toast('Could not load your website key'))},[me.org]);// eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(()=>{check();setWkey(null);db.widgetKey().then(setWkey).catch(()=>toast('Could not load your website key'));
+    setOrigins(null);db.widgetOrigins().then(setOrigins).catch(()=>setOrigins([]))},[me.org]);// eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(()=>{fetch('/embed/manifest.json').then(r=>r.ok?r.json():null).then(m=>m?.src&&m?.integrity&&setSri(m)).catch(()=>{})},[]);
+  const saveOrigins=async list=>{setSaving(true);try{setOrigins(await db.setWidgetOrigins(me.id,list));check();return true}catch(e){toast(e.message);return false}finally{setSaving(false)}};
+  const addSite=async e=>{e.preventDefault();const o=toOrigin(site);
+    if(!o)return toast('Enter a website address like www.yourclinic.com');
+    if(origins?.includes(o))return setSite('');
+    if(await saveOrigins([...(origins||[]),o])){setSite('');toast('Allowed: '+o.replace(/^https?:\/\//,''))}};
   const rotate=async()=>{if(!confirm('Make a new key? The chat stops working on any website still using the old code until you paste the new one.'))return;
     try{setWkey(await db.widgetKeyRotate());toast('New key made. Paste the new code on your website.')}catch(e){toast(e.message)}};
   const copy=()=>{navigator.clipboard?.writeText(code);toast('Code copied')};
@@ -64,7 +76,22 @@ export default function Install(){
       </section>
 
       <section className="card st">
-        <h3><span className="inst-n">4</span>Check it's live</h3>
+        <h3><span className="inst-n">4</span>Allow your website</h3>
+        <p className="route">The chat only opens on websites listed here, so nobody can put your clinic's chat on their own site.</p>
+        {origins===null?<p className="route">Loading…</p>:origins.length===0
+          ?<p className="inst-wait">No websites allowed yet. Add yours below, or the chat button won't open on it.</p>
+          :<ul className="inst-sites">{origins.map(o=><li key={o}><span className="inst-dot"/><b>{o.replace(/^https?:\/\//,'')}</b>
+            <button type="button" className="row-del" style={{position:'static',opacity:1}} aria-label={'Stop allowing '+o} title="Stop allowing this website" disabled={saving}
+              onClick={()=>confirm(`Stop showing the chat on ${o}?`)&&saveOrigins(origins.filter(x=>x!==o))}>×</button></li>)}</ul>}
+        <form className="inst-row" onSubmit={addSite} style={{alignItems:'flex-end'}}>
+          <div className="f" style={{flex:1}}><label htmlFor="iw">Website address</label><input id="iw" value={site} onChange={e=>setSite(e.target.value)} placeholder="www.yourclinic.com" inputMode="url" autoComplete="url"/></div>
+          <div className="f"><button className="btn" disabled={saving||!site.trim()}>{saving?'Saving…':'Allow'}</button></div>
+        </form>
+        <p className="route">Add each address people visit, e.g. both yourclinic.com and www.yourclinic.com.</p>
+      </section>
+
+      <section className="card st">
+        <h3><span className="inst-n">5</span>Check it's live</h3>
         <p className="route">Open your website once after publishing, then check here.</p>
         {sites===null&&<p className="route">Install checking isn't switched on yet for your account. The chat still works once the code is on your site.</p>}
         {sites?.length===0&&<p className="inst-wait">Not seen on any website yet.</p>}

@@ -5,6 +5,7 @@ import {executeTool} from './executor.js';
 import {fail,ToolError} from './errors.js';
 
 const MAX_RESULT_CHARS=12000;
+const known=(registry,name)=>{try{registry.get(name);return true}catch{return false}};
 const lastUser=messages=>[...messages].reverse().find(m=>m.role==='user')?.content??'';
 
 /* callModel(messages, tools) -> assistant message {content, tool_calls}. Supplied by the caller (the existing provider integration). */
@@ -12,6 +13,9 @@ const lastUser=messages=>[...messages].reverse().find(m=>m.role==='user')?.conte
    a time's availability). If no tool ran this turn, the model is sent back once to verify with its tools before answering. */
 export async function runToolLoop({callModel,registry,db,ctx,role,surface,system,messages,maxSteps=8,onCall,checkClaim}){
   const tools=modelToolsFor(registry,{role,surface});
+  // The model may only run what it was offered. Hidden tools (driven by the person's own taps) and tools for other roles are
+  // refused here even if the model names them, so injected instructions cannot reach them.
+  const offered=new Set(tools.map(t=>t.function.name));
   const c={...ctx,surface,userMessage:ctx.userMessage??lastUser(messages)};
   const convo=[{role:'system',content:system},...messages];
   const calls=[];
@@ -29,6 +33,7 @@ export async function runToolLoop({callModel,registry,db,ctx,role,surface,system
       let args;
       try{args=JSON.parse(call.function.arguments||'{}')}
       catch{env=fail(new ToolError('INVALID_ARGUMENT','The arguments were not valid JSON.',{retryable:false,nextStep:'Send the arguments again as a JSON object.'}))}
+      if(!env&&!offered.has(call.function.name)&&known(registry,call.function.name))env=fail(new ToolError('PERMISSION_DENIED','That action is not available here.',{retryable:false,nextStep:'Use one of the tools you were given.'}));
       env??=await executeTool(registry,call.function.name,args,c,db);
       calls.push({name:call.function.name,ok:env.ok,code:env.ok?null:env.error.code});
       onCall?.(call.function.name,env);
