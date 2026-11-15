@@ -849,3 +849,18 @@ test('S3 CORS: only Solara app origins are allowed',()=>{
     assert.equal(originAllowed(o,''),false,String(o));
   assert.equal(originAllowed('https://app.solara.health','https://app.solara.health, https://x.example'),true);
 });
+
+test('R1 a rate limit that resets later than we can wait goes straight to the fallback provider',async()=>{
+  const {postChat}=await import('../../supabase/functions/_shared/agent.js');
+  const real=globalThis.fetch,calls=[];
+  globalThis.fetch=async url=>{calls.push(url);return url.startsWith('https://primary')
+    ?new Response('{"error":"tpm"}',{status:429,headers:{'x-ratelimit-reset-tokens':'40s'}})
+    :new Response(JSON.stringify({choices:[{message:{content:'ok'}}]}),{status:200})};
+  try{
+    const att=[],t0=Date.now();
+    const j=await postChat({endpoint:'https://primary/v1',key:'k',model:'m',fallback:{endpoint:'https://backup/v1',key:'b',model:'m2'}},{messages:[]},{onAttempt:a=>att.push(a)});
+    assert.equal(j.choices[0].message.content,'ok');
+    assert.deepEqual(calls.map(u=>u.split('/')[2]),['primary','backup']);   // no pointless retries on the primary
+    assert.equal(att[0].wait_ms,40000);assert.ok(Date.now()-t0<1000);
+  }finally{globalThis.fetch=real}
+});

@@ -121,6 +121,16 @@ export async function runAgent({providers,system,messages}){
    failures are retried with backoff (honouring Retry-After, capped); a configured fallback provider is tried last.
    Retrying is safe: a model call has no side effects, and tool calls only run after a reply arrives. 4xx errors are not retried. */
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+/* How long a rate-limited provider asks us to wait, in ms (retry-after-ms, retry-after, or OpenAI's x-ratelimit-reset-* like "6m0s"/"1.5s"). */
+export function waitMs(h){
+  const num=v=>v!=null&&v!==''&&Number.isFinite(Number(v))?Number(v):null;
+  const dur=v=>{if(!v)return null;let t=0,ok=false;for(const [,n,u] of String(v).matchAll(/([\d.]+)(ms|h|m|s)/g)){ok=true;t+=Number(n)*({ms:1,s:1e3,m:6e4,h:36e5}[u])}return ok?t:null};
+  const ms=num(h.get('retry-after-ms'));if(ms!=null)return ms;
+  const ra=num(h.get('retry-after'));if(ra!=null)return ra*1000;
+  const resets=[dur(h.get('x-ratelimit-reset-tokens')),dur(h.get('x-ratelimit-reset-requests'))].filter(x=>x!=null);
+  return resets.length?Math.max(...resets):null;
+}
+const MAX_WAIT_MS=5000;
 export async function postChat(p,body,{attempts=3,timeoutMs=p.timeoutMs??30000,onAttempt}={}){
   let last;
   for(const prov of [p,...(p.fallback?[p.fallback]:[])]){
@@ -138,9 +148,11 @@ export async function postChat(p,body,{attempts=3,timeoutMs=p.timeoutMs??30000,o
         const text=await r.text().catch(()=>'');
         last=new Error('Model error '+status+': '+text.slice(0,300));last.status=status;
         if(status!==429&&status<500)throw last;                       // a bad request will not get better by retrying
-        const ra=Number(r.headers.get('retry-after'));
-        onAttempt?.({provider:prov===p?'primary':'fallback',attempt:i+1,status,ms:Date.now()-t0});
-        if(i<attempts-1)await sleep(Math.min(Number.isFinite(ra)&&ra>0?ra*1000:400*2**i+Math.random()*200,5000));
+        const wait=status===429?waitMs(r.headers):null;
+        onAttempt?.({provider:prov===p?'primary':'fallback',attempt:i+1,status,ms:Date.now()-t0,...(wait!=null?{wait_ms:Math.round(wait)}:{})});
+        // A limit that resets later than we can wait will not clear by retrying now: go to the fallback provider (or give up).
+        if(wait!=null&&wait>MAX_WAIT_MS)break;
+        if(i<attempts-1)await sleep(Math.min(wait!=null&&wait>0?wait:400*2**i+Math.random()*200,MAX_WAIT_MS));
       }catch(e){
         if(e===last&&status&&status!==429&&status<500)throw e;
         last=e;onAttempt?.({provider:prov===p?'primary':'fallback',attempt:i+1,status:status||'network',ms:Date.now()-t0});
