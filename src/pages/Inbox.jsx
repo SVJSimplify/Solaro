@@ -16,7 +16,12 @@ const why=x=>REASON[[...x.messages].reverse().find(m=>m.meta?.reason)?.meta.reas
 export default function Inbox(){
   const {user}=useAuth(),toast=useToast(),confirm=useConfirm(),[cv]=useTable('convos');
   const [tab,setTab]=useState('all'),[q,setQ]=useState(''),[as,setAs]=useState('patient');   // only used in test chats, where you play the patient so Solara answers (forms included); real chats always send as the team
-  const [params]=useSearchParams(),[sel,setSel]=useState(params.get('c')),[callOpen,setCallOpen]=useState(false),[typing,setTyping]=useState(null),[reply,setReply]=useState('');
+  const [params,setParams]=useSearchParams(),[sel,setSel]=useState(params.get('c')),[callOpen,setCallOpen]=useState(false),[typing,setTyping]=useState(null),[reply,setReply]=useState('');
+  // Phones show the list, then the chosen chat on its own screen. The chat is in the URL so the back button returns to the list.
+  const pushed=useRef(false),reading=!!params.get('c');
+  useEffect(()=>{const id=params.get('c');if(id)setSel(id)},[params]);
+  const openChat=id=>{setSel(id);if(matchMedia('(max-width:820px)').matches&&params.get('c')!==id){pushed.current=true;setParams({c:id})}};
+  const closeChat=()=>{if(pushed.current){pushed.current=false;history.back()}else setParams({},{replace:true})};
   const seen=useRef({}),box=useRef(null),[pending,setPending]=useState([]),opened=useRef({});
   const all=[...cv].sort((a,b)=>(Number(isUrgent(b))-Number(isUrgent(a)))||(b.created-a.created));
   const list=all.filter(x=>(tab==='all'||(tab==='open'?x.status==='handoff':tab==='closed'?x.status==='closed':x.status==='handled'))&&(!q.trim()||x.customer.toLowerCase().includes(q.trim().toLowerCase())||x.messages.some(m=>String(m.t).toLowerCase().includes(q.trim().toLowerCase()))));
@@ -48,7 +53,7 @@ export default function Inbox(){
   const sim=async()=>{
     const greeting=(await db.settings(user.id)).greeting||'Hi! How can I help you today?';
     const r=await db.add('convos',user.id,{customer:'Test customer',channel:'Web chat',status:'handled',test:true,messages:[{r:'bot',t:greeting,at:Date.now()}]});
-    setSel(r.id);toast('Test chat started');
+    openChat(r.id);toast('Test chat started');
   };
   /* One composer. Team replies go to the patient. Typing as the patient is only offered in test chats, where it is how you try the assistant out. */
   const send=async e=>{e.preventDefault();const v=reply.trim();if(!v)return;setReply('');
@@ -63,9 +68,9 @@ export default function Inbox(){
     try{await db.patch('convos',c.id,{messages:[...c.messages,{r:'cust',t:text,at:Date.now(),meta:{fv:{id:form.id,values,freeText}}}]});think(c.id,text,from)}
     catch(err){unsend(p);toast('Not sent: '+err.message)}
   };
-  const clearTests=async()=>{const t=cv.filter(isTest);if(!t.length)return toast('No test chats');if(!await confirm({title:`Delete ${t.length} test chat${t.length>1?'s':''}?`,body:'Only test chats are removed. Real patient conversations are kept.',confirm:'Delete test chats',danger:true}))return;for(const x of t)await db.del('convos',x.id);setSel(null);toast('Test chats cleared')};
+  const clearTests=async()=>{const t=cv.filter(isTest);if(!t.length)return toast('No test chats');if(!await confirm({title:`Delete ${t.length} test chat${t.length>1?'s':''}?`,body:'Only test chats are removed. Real patient conversations are kept.',confirm:'Delete test chats',danger:true}))return;for(const x of t)await db.del('convos',x.id);setSel(null);setParams({},{replace:true});toast('Test chats cleared')};
   /* Only test chats can be deleted. Real customer conversations are kept. */
-  const removeTest=async()=>{if(!await confirm({title:'Delete this test chat?',confirm:'Delete',danger:true}))return;await db.del('convos',c.id);setSel(null);toast('Test chat deleted')};
+  const removeTest=async()=>{if(!await confirm({title:'Delete this test chat?',confirm:'Delete',danger:true}))return;await db.del('convos',c.id);setSel(null);setParams({},{replace:true});toast('Test chat deleted')};
   /* The team ends a conversation (the patient is told and can start a new chat) or reopens it with the team.
      A chat handed to the team never goes back to Solara. */
   const endChat=async()=>{
@@ -76,14 +81,14 @@ export default function Inbox(){
   return(<>
     <header><div><h1>Inbox</h1><p>{cv.length} conversation{cv.length===1?'':'s'}, {bots} repl{bots===1?'y':'ies'} from Solara{open?`, ${open} waiting for a person`:''}.</p></div>
       <span className="hdr-actions">{cv.some(isTest)&&<button className="btn ghost sm" onClick={clearTests}>Clear test chats</button>}<button className="btn ghost sm" onClick={sim}><Icon n="plus" size={16}/>Test chat</button></span></header>
-    <div className="inbox">
+    <div className={'inbox'+(reading&&c?' reading':'')}>
       <div className="card list">
         <div className="list-h">
           <div className="seg" role="group" aria-label="Show">{[['all','All'],['open',`With the team${open?` (${open})`:''}`],['done','Solara'],['closed','Ended']].map(([k,l])=><button key={k} type="button" className="btn sm" aria-pressed={k===tab} onClick={()=>setTab(k)}>{l}</button>)}</div>
           <label className="search"><Icon n="search" size={18}/><input type="search" placeholder="Search chats" aria-label="Search chats" value={q} onChange={e=>setQ(e.target.value)}/></label>
         </div>
         {list.map((x,i)=>(
-          <button key={x.id} className={'row st'+(isUrgent(x)?' urgent':'')} style={{'--i':Math.min(i,14)}} aria-current={x.id===c?.id} onClick={()=>setSel(x.id)}>
+          <button key={x.id} className={'row st'+(isUrgent(x)?' urgent':'')} style={{'--i':Math.min(i,14)}} aria-current={x.id===c?.id} onClick={()=>openChat(x.id)}>
             <b>{x.customer}<span className={'pill'+(x.status==='handoff'?' hot':'')+(isUrgent(x)?' urgent':'')}>{isUrgent(x)?'Urgent':x.status==='handoff'?'Needs a person':'Handled'}</span></b>
             <small>{x.messages.at(-1)?.t}</small><small>{x.status==='handoff'?why(x)+' · ':''}{x.channel} · {ago(x.created)}</small>
           </button>))}
@@ -91,7 +96,7 @@ export default function Inbox(){
       </div>
       <div className="card thread">
         {c?<>
-          <header><div><b>{c.customer}</b> <small>{c.channel}</small>{c.status==='handoff'&&(phoneOf(c.messages)?<button className="why" onClick={()=>setCallOpen(o=>!o)} aria-expanded={callOpen}> · {why(c)}</button>:<small className="why"> · {why(c)}</small>)}</div><span className="hdr-actions">{c.status==='closed'?<><span className="chip cancelled" style={{textDecoration:'none'}}>Ended</span><button className="btn sm ghost" onClick={reopen}>Reopen</button></>:<button className="btn sm" onClick={endChat}>End conversation</button>}{isTest(c)&&<button className="btn sm ghost" onClick={removeTest}>Delete test chat</button>}</span></header>
+          <header><button type="button" className="btn icon ghost back-m" onClick={closeChat} aria-label="Back to all chats"><Icon n="left" size={18}/></button><div className="who-t"><b>{c.customer}</b> <small>{c.channel}</small>{c.status==='handoff'&&(phoneOf(c.messages)?<button className="why" onClick={()=>setCallOpen(o=>!o)} aria-expanded={callOpen}> · {why(c)}</button>:<small className="why"> · {why(c)}</small>)}</div><span className="hdr-actions">{c.status==='closed'?<><span className="chip cancelled" style={{textDecoration:'none'}}>Ended</span><button className="btn sm ghost" onClick={reopen}>Reopen</button></>:<button className="btn sm" onClick={endChat}>End conversation</button>}{isTest(c)&&<button className="btn sm ghost" onClick={removeTest}>Delete test chat</button>}</span></header>
           {callOpen&&c.status==='handoff'&&phoneOf(c.messages)&&<CallPanel phone={phoneOf(c.messages)} onClose={()=>setCallOpen(false)}/>}
           <div className="msgs" ref={box} aria-live="polite">
             {shown.map((m,i)=>(

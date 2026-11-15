@@ -164,7 +164,7 @@
 @media (prefers-reduced-motion:reduce){.wg *{animation:none!important;transition:none!important}.wg-log{scroll-behavior:auto}}
 
 /* ── Solara app: patient home ─────────────────────────────── */
-.ah{padding-top:env(safe-area-inset-top)}
+.ah{padding-top:var(--sat)}
 .ah .wg-head{padding-right:18px}
 .ah-start{justify-content:space-between;padding:12vh 24px 32px}
 .ah-hero{text-align:center}
@@ -189,4 +189,4 @@
 .ah-link input:focus{outline:none;border-color:var(--w-acc);box-shadow:0 0 0 3px rgba(217,111,84,.22)}
 .wg-back{flex:none;width:36px;height:36px;margin-left:-6px;border:0;border-radius:50%;background:transparent;color:var(--w-tx2);display:grid;place-items:center;cursor:pointer}
 .wg-back:hover{background:var(--w-sf)}
-.wg--app{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+.wg--app{padding-top:var(--sat);padding-bottom:var(--sab)}
