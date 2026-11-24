@@ -73,6 +73,8 @@ reported as not sent; nothing is ever marked sent by the app. Vault secret `outb
 three Twilio secrets, enable the `pg_net` extension, store the function URL with `select vault.create_secret('<url>','outbox_dispatch_url')`, then
 `select cron.schedule('solara-outbox','* * * * *','select public.outbox_kick()')`. Until then every patient text stays `queued` and turns `failed` after 24 h.
 
+**WhatsApp (optional, per clinic).** Settings → Patient messages lets an owner or admin choose SMS (default) or WhatsApp; the choice is `organizations.message_channel` (migration 0037) and only changes where appointment reminders go. WhatsApp uses the Meta Cloud API with one platform-level sender. Edge Function secrets: `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN` (a permanent system-user token), optional `WHATSAPP_REMINDER_TEMPLATE` (default `appointment_reminder`) and `WHATSAPP_TEMPLATE_LANG` (default `en`). Reminders are clinic-initiated, so they need a Meta-approved Utility template with exactly 3 body parameters, in order: {{1}} service, {{2}} doctor, {{3}} date and time (for example: "Reminder: your {{1}} appointment with {{2}} is on {{3}}."). Free-text WhatsApp messages (anything that is not a template) only deliver inside the 24-hour customer-service window after the patient last wrote to the number, so the dispatcher uses the template for reminders. Without the two required secrets, WhatsApp rows stay queued and turn `failed` after 24 h, same as SMS.
+
 **Insights** come from `insights_summary(org, days)`: counted in the database over the whole period, in the clinic's time zone.
 
 **Changing the domain.** The app derives its address from where it is served. Update only: Supabase Auth → URL Configuration (Site URL and

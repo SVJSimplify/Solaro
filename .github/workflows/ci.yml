@@ -1,0 +1,26 @@
+# Builds the app and runs the unit tests on every pull request and on pushes to any branch except main
+# (main is covered by the deploy workflows). The repo has no lint or TypeScript config, so there is no lint step.
+name: CI
+
+on:
+  push:
+    branches-ignore: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run test:tools
+      - run: npm run test:schedule

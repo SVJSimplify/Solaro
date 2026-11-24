@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test:tools": "node --test tests/tools/unit.test.mjs tests/tools/firebase.test.mjs",
+    "test:tools": "node --test tests/tools/unit.test.mjs tests/tools/firebase.test.mjs tests/tools/whatsapp.test.mjs",
     "test:schedule": "node --test tests/schedule/clinic-hours.test.mjs",
     "test:db": "node --test tests/db/information.test.mjs tests/db/tools.test.mjs tests/db/production.test.mjs",
     "test:backfill": "node --test tests/db/backfill.test.mjs",

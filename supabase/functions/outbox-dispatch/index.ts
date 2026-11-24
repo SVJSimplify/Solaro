@@ -1,12 +1,13 @@
-// Sends queued messages: text messages (Twilio) and app push notifications (Firebase Cloud Messaging).
+// Sends queued messages: text messages (Twilio), WhatsApp (Meta Cloud API) and app push notifications (Firebase Cloud Messaging).
 // Woken every minute by pg_cron (outbox_kick) when something is due; no browser is involved.
 // Claiming is atomic in the database (outbox_claim), so two runs can never send the same message, and a run that dies
 // mid-batch leaves its rows to be picked up again after 5 minutes. Every result is written back (outbox_mark):
 // sent, or queued again with a backoff, or failed after 5 attempts. Only channels with a configured provider are claimed,
 // so push keeps working while text messages are not set up (and the other way round).
-// Secrets: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM (text) · FIREBASE_SERVICE_ACCOUNT (push).
+// Secrets: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM (text) · WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_ACCESS_TOKEN, optional WHATSAPP_REMINDER_TEMPLATE (default appointment_reminder), WHATSAPP_TEMPLATE_LANG (default en) · FIREBASE_SERVICE_ACCOUNT (push).
 import {createClient} from 'npm:@supabase/supabase-js@2';
 import {sendPush} from '../_shared/firebase.js';
+import {sendWhatsApp} from '../_shared/whatsapp.js';
 
 const J=(b:unknown,s=200)=>new Response(JSON.stringify(b),{status:s,headers:{'Content-Type':'application/json'}});
 const log=(f:Record<string,unknown>)=>console.log(JSON.stringify({ts:new Date().toISOString(),fn:'outbox-dispatch',...f}));   // never log numbers, tokens or message text
@@ -23,7 +24,8 @@ Deno.serve(async req=>{
 
   const sid=Deno.env.get('TWILIO_ACCOUNT_SID'),tok=Deno.env.get('TWILIO_AUTH_TOKEN'),from=Deno.env.get('TWILIO_FROM');
   const sa=serviceAccount();
-  const channels=[...(sid&&tok&&from?['sms']:[]),...(sa?['push']:[])];
+  const wa={phoneNumberId:Deno.env.get('WHATSAPP_PHONE_NUMBER_ID')??'',accessToken:Deno.env.get('WHATSAPP_ACCESS_TOKEN')??'',template:Deno.env.get('WHATSAPP_REMINDER_TEMPLATE')||'appointment_reminder',lang:Deno.env.get('WHATSAPP_TEMPLATE_LANG')||'en'};
+  const channels=[...(sid&&tok&&from?['sms']:[]),...(wa.phoneNumberId&&wa.accessToken?['whatsapp']:[]),...(sa?['push']:[])];
   if(!channels.length){log({outcome:'no_provider_configured'});return J({configured:false,sent:0})}
 
   const {data:rows,error}=await svc.rpc('outbox_claim',{p_limit:50,p_channels:channels});
@@ -38,6 +40,9 @@ Deno.serve(async req=>{
           body:new URLSearchParams({To:m.to_addr,From:from!,Body:m.body})});
         const j=await r.json().catch(()=>({}));
         if(r.ok){good=true;pid=String(j.sid??'')}else err=`Provider ${r.status}: ${String(j.message??'').slice(0,160)}`;
+      }else if(m.channel==='whatsapp'){
+        const r=await sendWhatsApp(wa,m);
+        if(r.ok){good=true;pid=r.id}else err=r.error;
       }else if(m.channel==='push'){
         const r=await sendPush(sa,{token:m.to_addr,title:m.title||'Solara',body:m.body,data:m.data??{}});
         if(r.ok){good=true;pid=r.id}
