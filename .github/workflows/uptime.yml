@@ -1,0 +1,55 @@
+# Uptime monitor. Every 5 minutes (GitHub may run it a few minutes late) it checks the dashboard, the chat widget
+# and the backend health endpoint. On failure it opens one "Outage" issue, which emails the repo owner; while the
+# outage lasts it adds a comment at most once an hour; on recovery it comments and closes the issue.
+name: Uptime
+on:
+  schedule: [{cron: '*/5 * * * *'}]
+  workflow_dispatch:
+permissions:
+  contents: read
+  issues: write
+concurrency: {group: uptime, cancel-in-progress: false}
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check endpoints
+        id: c
+        run: |
+          fail=""
+          probe(){ # name url  (two tries, 20 s each, so one slow request is not an outage)
+            for i in 1 2; do
+              code=$(curl -s -o body.txt -w '%{http_code}' -m 20 "$2" || echo 000)
+              [ "$code" = 200 ] && { echo "OK   $1"; return; }
+              sleep 10
+            done
+            echo "FAIL $1 (HTTP $code)"; fail="$fail- **$1**: HTTP $code"$'\n'
+          }
+          probe "Dashboard" https://solaro-six.vercel.app/
+          probe "Chat widget" https://solaro-six.vercel.app/widget
+          probe "Backend health" https://wqhxpfzbvtkdwzehddjr.supabase.co/functions/v1/health
+          [ -s body.txt ] && echo "Health: $(head -c 300 body.txt)"
+          { echo "fail<<EOF"; printf '%s' "$fail"; echo "EOF"; } >> "$GITHUB_OUTPUT"
+      - name: Open, update or close the outage issue
+        env: {GH_TOKEN: '${{ github.token }}', FAIL: '${{ steps.c.outputs.fail }}', REPO: '${{ github.repository }}'}
+        run: |
+          gh label create outage -R "$REPO" -c B60205 -d "Opened by the uptime monitor" 2>/dev/null || true
+          n=$(gh issue list -R "$REPO" -l outage -s open --json number -q '.[0].number')
+          now=$(date -u '+%Y-%m-%d %H:%M UTC')
+          if [ -n "$FAIL" ]; then
+            if [ -z "$n" ]; then
+              gh issue create -R "$REPO" -l outage -t "Outage: Solara is not responding ($now)" \
+                -b "$(printf 'The uptime monitor found:\n\n%s\nThis issue closes by itself when everything responds again.' "$FAIL")"
+            else
+              last=$(gh api "repos/$REPO/issues/$n/comments" -q '.[-1].created_at // empty')
+              ref=${last:-$(gh issue view "$n" -R "$REPO" --json createdAt -q .createdAt)}
+              if [ $(( $(date +%s) - $(date -d "$ref" +%s) )) -ge 3600 ]; then
+                gh issue comment "$n" -R "$REPO" -b "$(printf 'Still failing at %s:\n\n%s' "$now" "$FAIL")"
+              fi
+            fi
+            exit 1
+          elif [ -n "$n" ]; then
+            gh issue comment "$n" -R "$REPO" -b "Recovered at $now. Everything responds again."
+            gh issue close "$n" -R "$REPO"
+          fi
