@@ -8,6 +8,7 @@
 import {createClient} from 'npm:@supabase/supabase-js@2';
 import {sendPush} from '../_shared/firebase.js';
 import {sendWhatsApp} from '../_shared/whatsapp.js';
+import {countryForTimeZone} from '../_shared/tools/phone.js';
 
 const J=(b:unknown,s=200)=>new Response(JSON.stringify(b),{status:s,headers:{'Content-Type':'application/json'}});
 const log=(f:Record<string,unknown>)=>console.log(JSON.stringify({ts:new Date().toISOString(),fn:'outbox-dispatch',...f}));   // never log numbers, tokens or message text
@@ -30,6 +31,9 @@ Deno.serve(async req=>{
 
   const {data:rows,error}=await svc.rpc('outbox_claim',{p_limit:50,p_channels:channels});
   if(error){log({outcome:'claim_failed',error:String(error.message).slice(0,200)});return J({error:'claim failed'},500)}
+  // Numbers saved without a country code are read in each clinic's own country (from its time zone).
+  const orgs=[...new Set((rows??[]).filter(m=>m.channel==='whatsapp').map(m=>m.org_id))];
+  const tz=new Map(orgs.length?((await svc.from('organizations').select('id,timezone').in('id',orgs)).data??[]).map(o=>[o.id,o.timezone]):[]);
   let sent=0,failed=0;
   for(const m of rows??[]){
     let good=false,err='',pid='';
@@ -41,7 +45,7 @@ Deno.serve(async req=>{
         const j=await r.json().catch(()=>({}));
         if(r.ok){good=true;pid=String(j.sid??'')}else err=`Provider ${r.status}: ${String(j.message??'').slice(0,160)}`;
       }else if(m.channel==='whatsapp'){
-        const r=await sendWhatsApp(wa,m);
+        const r=await sendWhatsApp({...wa,country:countryForTimeZone(tz.get(m.org_id))},m);
         if(r.ok){good=true;pid=r.id}else err=r.error;
       }else if(m.channel==='push'){
         const r=await sendPush(sa,{token:m.to_addr,title:m.title||'Solara',body:m.body,data:m.data??{}});

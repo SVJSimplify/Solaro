@@ -1,20 +1,15 @@
-/* Meta WhatsApp Cloud API helpers. Pure and dependency-free; never log numbers, tokens or message text. */
+/* Meta WhatsApp Cloud API helpers. Pure; never log numbers, tokens or message text. */
+import {normalizePhone} from './tools/phone.js';
 
-/* Digits-only E.164 without "+", or '' when the number is not usable. A 10-digit Indian mobile (6-9...) gets the 91 prefix. */
-export function toWaNumber(phone,cc='91'){
-  let d=String(phone??'').replace(/\D/g,'');
-  d=d.startsWith('00')?d.slice(2):d.replace(/^0/,'');
-  if(d.length===10)d=cc==='91'&&!/^[6-9]/.test(d)?'':cc+d;
-  if(cc==='91'&&d.startsWith('91')&&d.length===12&&!/^91[6-9]/.test(d))return'';
-  return/^[1-9]\d{10,14}$/.test(d)?d:'';
-}
+/* Digits-only E.164 without "+", or '' when the number is not usable. A number without a country code is read in the clinic's country ('US' or 'IN'), never assumed Indian. */
+export function toWaNumber(phone,country='US'){return(normalizePhone(phone,country)??'').replace(/^\+/,'')}
 
 /* Default template name per data.template; the templates option overrides them. */
 export const WA_TEMPLATES={reminder:'appointment_reminder',confirmation:'appointment_confirmation',cancellation:'appointment_cancellation',reschedule:'appointment_reschedule',decline:'appointment_declined'};
 
 /* A reminder, confirmation, cancellation, reschedule or decline with params becomes a template message (params are the body text params, in order); anything else is plain text. */
-export function buildWaPayload(msg,{templates,lang='en'}={}){
-  const to=toWaNumber(msg?.to_addr??msg?.to);
+export function buildWaPayload(msg,{templates,lang='en',country}={}){
+  const to=toWaNumber(msg?.to_addr??msg?.to,country);
   const params=msg?.data?.params;
   const name=Object.hasOwn(WA_TEMPLATES,msg?.data?.template)?{...WA_TEMPLATES,...templates}[msg.data.template]:'';
   if(name&&Array.isArray(params)&&params.length)
@@ -27,7 +22,7 @@ export function buildWaPayload(msg,{templates,lang='en'}={}){
 export async function sendWhatsApp(cfg,msg){
   try{
     if(!cfg?.phoneNumberId||!cfg?.accessToken)return{ok:false,error:'WhatsApp is not configured'};
-    const payload=buildWaPayload(msg,{templates:cfg.templates,lang:cfg.lang});
+    const payload=buildWaPayload(msg,{templates:cfg.templates,lang:cfg.lang,country:cfg.country});
     if(!payload.to)return{ok:false,error:'Invalid phone number'};
     const r=await(cfg.fetchImpl??fetch)(`https://graph.facebook.com/v21.0/${encodeURIComponent(cfg.phoneNumberId)}/messages`,{
       method:'POST',signal:AbortSignal.timeout(10000),

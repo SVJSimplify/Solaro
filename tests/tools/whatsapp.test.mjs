@@ -3,24 +3,27 @@ import assert from 'node:assert/strict';
 import {toWaNumber,buildWaPayload,sendWhatsApp} from '../../supabase/functions/_shared/whatsapp.js';
 
 test('W1 Indian numbers become digits-only with the 91 prefix',()=>{
-  assert.equal(toWaNumber('98765 43210'),'919876543210');
-  assert.equal(toWaNumber('+91 98765-43210'),'919876543210');
-  assert.equal(toWaNumber('09876543210'),'919876543210');
-  assert.equal(toWaNumber('919876543210'),'919876543210');
-  assert.equal(toWaNumber('0091 98765 43210'),'919876543210');
+  assert.equal(toWaNumber('98765 43210','IN'),'919876543210');
+  assert.equal(toWaNumber('+91 98765-43210','IN'),'919876543210');
+  assert.equal(toWaNumber('09876543210','IN'),'919876543210');
+  assert.equal(toWaNumber('919876543210','IN'),'919876543210');
+  assert.equal(toWaNumber('0091 98765 43210','IN'),'919876543210');
   assert.equal(toWaNumber('+1 415 555 0132'),'14155550132');
 });
 test('W2 unusable numbers give an empty string',()=>{
-  for(const v of ['',null,undefined,'abc','12345','1234567890','5876543210','91 5876543210','1'.repeat(16)])assert.equal(toWaNumber(v),'',String(v));
-  assert.equal(toWaNumber('4155550132','1'),'14155550132');
+  for(const v of ['',null,undefined,'abc','12345','1234567890','91 5876543210','1'.repeat(16)])assert.equal(toWaNumber(v),'',String(v));
+  assert.equal(toWaNumber('4155550132','US'),'14155550132');
+  assert.equal(toWaNumber('9175551234','US'),'19175551234');   // a US clinic never sends to +91
+  assert.equal(toWaNumber('9175551234','IN'),'919175551234');
+  assert.equal(toWaNumber('9175551234'),'19175551234');
 });
 test('W3 a reminder with params is a template message',()=>{
-  const p=buildWaPayload({to_addr:'98765 43210',body:'x',data:{template:'reminder',params:['Cleaning','Dr Rao','Mon, Dec 1 at 10:00 AM']}},{templates:{reminder:'appointment_reminder'},lang:'en'});
+  const p=buildWaPayload({to_addr:'98765 43210',body:'x',data:{template:'reminder',params:['Cleaning','Dr Rao','Mon, Dec 1 at 10:00 AM']}},{templates:{reminder:'appointment_reminder'},lang:'en',country:'IN'});
   assert.deepEqual(p,{messaging_product:'whatsapp',to:'919876543210',type:'template',template:{name:'appointment_reminder',language:{code:'en'},
     components:[{type:'body',parameters:[{type:'text',text:'Cleaning'},{type:'text',text:'Dr Rao'},{type:'text',text:'Mon, Dec 1 at 10:00 AM'}]}]}});
 });
 test('W4 anything else is plain text',()=>{
-  const p=buildWaPayload({to_addr:'9876543210',body:'Hello',data:{}});
+  const p=buildWaPayload({to_addr:'9876543210',body:'Hello',data:{}},{country:'IN'});
   assert.deepEqual(p,{messaging_product:'whatsapp',to:'919876543210',type:'text',text:{preview_url:false,body:'Hello'}});
   assert.equal(buildWaPayload({to_addr:'9876543210',body:'Hi',data:{template:'reminder',params:[]}}).type,'text');
 });
