@@ -9,21 +9,25 @@ export function toWaNumber(phone,cc='91'){
   return/^[1-9]\d{10,14}$/.test(d)?d:'';
 }
 
-/* A reminder with params becomes a template message (params are the body text params, in order); anything else is plain text. */
-export function buildWaPayload(msg,{template='appointment_reminder',lang='en'}={}){
+/* Default template name per data.template; the templates option overrides them. */
+export const WA_TEMPLATES={reminder:'appointment_reminder',confirmation:'appointment_confirmation',cancellation:'appointment_cancellation'};
+
+/* A reminder, confirmation or cancellation with params becomes a template message (params are the body text params, in order); anything else is plain text. */
+export function buildWaPayload(msg,{templates,lang='en'}={}){
   const to=toWaNumber(msg?.to_addr??msg?.to);
   const params=msg?.data?.params;
-  if(msg?.data?.template==='reminder'&&Array.isArray(params)&&params.length)
-    return{messaging_product:'whatsapp',to,type:'template',template:{name:template,language:{code:lang},
+  const name=Object.hasOwn(WA_TEMPLATES,msg?.data?.template)?{...WA_TEMPLATES,...templates}[msg.data.template]:'';
+  if(name&&Array.isArray(params)&&params.length)
+    return{messaging_product:'whatsapp',to,type:'template',template:{name,language:{code:lang},
       components:[{type:'body',parameters:params.map(p=>({type:'text',text:String(p??'').slice(0,1024)}))}]}};
   return{messaging_product:'whatsapp',to,type:'text',text:{preview_url:false,body:String(msg?.body??'').slice(0,4096)}};
 }
 
-/* cfg: {phoneNumberId, accessToken, template, lang, fetchImpl}. Returns {ok:true,id} or {ok:false,error}; never throws. */
+/* cfg: {phoneNumberId, accessToken, templates, lang, fetchImpl}. Returns {ok:true,id} or {ok:false,error}; never throws. */
 export async function sendWhatsApp(cfg,msg){
   try{
     if(!cfg?.phoneNumberId||!cfg?.accessToken)return{ok:false,error:'WhatsApp is not configured'};
-    const payload=buildWaPayload(msg,{template:cfg.template,lang:cfg.lang});
+    const payload=buildWaPayload(msg,{templates:cfg.templates,lang:cfg.lang});
     if(!payload.to)return{ok:false,error:'Invalid phone number'};
     const r=await(cfg.fetchImpl??fetch)(`https://graph.facebook.com/v21.0/${encodeURIComponent(cfg.phoneNumberId)}/messages`,{
       method:'POST',signal:AbortSignal.timeout(10000),

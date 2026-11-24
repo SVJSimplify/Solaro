@@ -1,5 +1,5 @@
--- 0037: WhatsApp (Meta Cloud API) as a per-clinic alternative to text messages for appointment reminders.
--- Additive. Rollback: restore queue_due_reminders() from 0036, drop function set_message_channel(uuid,text),
+-- 0037: WhatsApp (Meta Cloud API) as a per-clinic alternative to text messages for appointment reminders, confirmations and cancellations.
+-- Additive. Rollback: restore queue_due_reminders() and booking_notify() from 0036, drop function set_message_channel(uuid,text),
 -- then optionally drop column organizations.message_channel. Existing clinics stay on 'sms'. outbox has no channel constraint, so 'whatsapp' rows need no change there.
 
 alter table organizations add column if not exists message_channel text not null default 'sms';
@@ -59,4 +59,31 @@ begin
   update outbox set status='failed', last_error='Not delivered within 24 hours. Check that push notifications are connected.'
     where status='queued' and channel='push' and created_at<now()-interval '24 hours';
   return jsonb_build_object('push',p,'expired',x);
+end $$;
+
+-- Booking messages: same as 0036, but the text/WhatsApp message goes out on the clinic's channel.
+-- Confirmations and cancellations are WhatsApp templates with three body parameters (service, doctor, when) in outbox.data;
+-- other kinds (reschedule, decline) go as plain WhatsApp text, which only delivers inside the 24-hour customer-service window.
+create or replace function booking_notify(b bookings, p_body text, p_kind text) returns void
+language plpgsql security definer set search_path=public as $$
+declare ch text;
+begin
+  if b.conversation_id is not null then
+    insert into messages(org_id,conversation_id,role,body) values(b.org_id,b.conversation_id,'staff',p_body);   -- also pushes to the chat's devices
+  else
+    perform push_patient(b.org_id,null,b.phone,(select name from organizations where id=b.org_id),p_body,p_kind);
+  end if;
+  if coalesce(b.phone,'')<>'' then
+    select coalesce(o.message_channel,'sms') into ch from organizations o where o.id=b.org_id;
+    if ch='whatsapp' then
+      if p_kind in ('confirmation','cancellation') then
+        insert into outbox(org_id,channel,to_addr,body,data,kind,booking_id) values(b.org_id,'whatsapp',b.phone,p_body,
+          jsonb_build_object('template',p_kind,'params',jsonb_build_array(coalesce(nullif(b.service,''),'appointment'),coalesce(nullif(b.doctor,''),'our team'),to_char(b.starts_at,'Dy, Mon FMDD "at" FMHH12:MI AM'))),p_kind,b.id);
+      else
+        insert into outbox(org_id,channel,to_addr,body,kind,booking_id) values(b.org_id,'whatsapp',b.phone,p_body,p_kind,b.id);
+      end if;
+    else
+      insert into outbox(org_id,channel,to_addr,body,kind,booking_id) values(b.org_id,'sms',b.phone,p_body,p_kind,b.id);
+    end if;
+  end if;
 end $$;

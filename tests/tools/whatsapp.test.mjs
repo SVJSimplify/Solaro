@@ -15,7 +15,7 @@ test('W2 unusable numbers give an empty string',()=>{
   assert.equal(toWaNumber('4155550132','1'),'14155550132');
 });
 test('W3 a reminder with params is a template message',()=>{
-  const p=buildWaPayload({to_addr:'98765 43210',body:'x',data:{template:'reminder',params:['Cleaning','Dr Rao','Mon, Dec 1 at 10:00 AM']}},{template:'appointment_reminder',lang:'en'});
+  const p=buildWaPayload({to_addr:'98765 43210',body:'x',data:{template:'reminder',params:['Cleaning','Dr Rao','Mon, Dec 1 at 10:00 AM']}},{templates:{reminder:'appointment_reminder'},lang:'en'});
   assert.deepEqual(p,{messaging_product:'whatsapp',to:'919876543210',type:'template',template:{name:'appointment_reminder',language:{code:'en'},
     components:[{type:'body',parameters:[{type:'text',text:'Cleaning'},{type:'text',text:'Dr Rao'},{type:'text',text:'Mon, Dec 1 at 10:00 AM'}]}]}});
 });
@@ -23,6 +23,17 @@ test('W4 anything else is plain text',()=>{
   const p=buildWaPayload({to_addr:'9876543210',body:'Hello',data:{}});
   assert.deepEqual(p,{messaging_product:'whatsapp',to:'919876543210',type:'text',text:{preview_url:false,body:'Hello'}});
   assert.equal(buildWaPayload({to_addr:'9876543210',body:'Hi',data:{template:'reminder',params:[]}}).type,'text');
+});
+test('W3b confirmation and cancellation pick their own template, with defaults and overrides',()=>{
+  const m=t=>({to_addr:'9876543210',body:'x',data:{template:t,params:['Cleaning','Dr Rao','Mon']}});
+  assert.equal(buildWaPayload(m('confirmation')).template.name,'appointment_confirmation');
+  assert.equal(buildWaPayload(m('cancellation')).template.name,'appointment_cancellation');
+  assert.equal(buildWaPayload(m('reminder')).template.name,'appointment_reminder');
+  assert.equal(buildWaPayload(m('cancellation'),{templates:{cancellation:'c2'}}).template.name,'c2');
+  assert.equal(buildWaPayload(m('reminder'),{templates:{cancellation:'c2'}}).template.name,'appointment_reminder');
+  assert.equal(buildWaPayload(m('reschedule')).type,'text');
+  assert.equal(buildWaPayload(m('toString')).type,'text');
+  assert.equal(buildWaPayload({...m('confirmation'),data:{template:'confirmation',params:[]}}).type,'text');
 });
 test('W5 sendWhatsApp returns the message id and sends a Bearer request',async()=>{
   let seen;
