@@ -10,9 +10,9 @@ export function toWaNumber(phone,cc='91'){
 }
 
 /* Default template name per data.template; the templates option overrides them. */
-export const WA_TEMPLATES={reminder:'appointment_reminder',confirmation:'appointment_confirmation',cancellation:'appointment_cancellation'};
+export const WA_TEMPLATES={reminder:'appointment_reminder',confirmation:'appointment_confirmation',cancellation:'appointment_cancellation',reschedule:'appointment_reschedule',decline:'appointment_declined'};
 
-/* A reminder, confirmation or cancellation with params becomes a template message (params are the body text params, in order); anything else is plain text. */
+/* A reminder, confirmation, cancellation, reschedule or decline with params becomes a template message (params are the body text params, in order); anything else is plain text. */
 export function buildWaPayload(msg,{templates,lang='en'}={}){
   const to=toWaNumber(msg?.to_addr??msg?.to);
   const params=msg?.data?.params;

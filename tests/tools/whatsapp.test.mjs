@@ -24,14 +24,20 @@ test('W4 anything else is plain text',()=>{
   assert.deepEqual(p,{messaging_product:'whatsapp',to:'919876543210',type:'text',text:{preview_url:false,body:'Hello'}});
   assert.equal(buildWaPayload({to_addr:'9876543210',body:'Hi',data:{template:'reminder',params:[]}}).type,'text');
 });
-test('W3b confirmation and cancellation pick their own template, with defaults and overrides',()=>{
+test('W3b confirmation, cancellation, reschedule and decline pick their own template, with defaults and overrides',()=>{
   const m=t=>({to_addr:'9876543210',body:'x',data:{template:t,params:['Cleaning','Dr Rao','Mon']}});
   assert.equal(buildWaPayload(m('confirmation')).template.name,'appointment_confirmation');
   assert.equal(buildWaPayload(m('cancellation')).template.name,'appointment_cancellation');
   assert.equal(buildWaPayload(m('reminder')).template.name,'appointment_reminder');
   assert.equal(buildWaPayload(m('cancellation'),{templates:{cancellation:'c2'}}).template.name,'c2');
   assert.equal(buildWaPayload(m('reminder'),{templates:{cancellation:'c2'}}).template.name,'appointment_reminder');
-  assert.equal(buildWaPayload(m('reschedule')).type,'text');
+  assert.equal(buildWaPayload(m('reschedule')).template.name,'appointment_reschedule');
+  assert.equal(buildWaPayload(m('decline')).template.name,'appointment_declined');
+  assert.equal(buildWaPayload(m('reschedule'),{templates:{reschedule:'r2'}}).template.name,'r2');
+  assert.equal(buildWaPayload(m('decline'),{templates:{decline:'d2'}}).template.name,'d2');
+  assert.equal(buildWaPayload(m('reminder'),{templates:{decline:'d2'}}).template.name,'appointment_reminder');
+  assert.equal(buildWaPayload({...m('reschedule'),data:{template:'reschedule',params:[]}}).type,'text');
+  assert.equal(buildWaPayload(m('other')).type,'text');
   assert.equal(buildWaPayload(m('toString')).type,'text');
   assert.equal(buildWaPayload({...m('confirmation'),data:{template:'confirmation',params:[]}}).type,'text');
 });

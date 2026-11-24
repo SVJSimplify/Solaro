@@ -4,7 +4,7 @@
 // mid-batch leaves its rows to be picked up again after 5 minutes. Every result is written back (outbox_mark):
 // sent, or queued again with a backoff, or failed after 5 attempts. Only channels with a configured provider are claimed,
 // so push keeps working while text messages are not set up (and the other way round).
-// Secrets: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM (text) · WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_ACCESS_TOKEN, optional WHATSAPP_REMINDER_TEMPLATE (default appointment_reminder), WHATSAPP_CONFIRMATION_TEMPLATE (default appointment_confirmation), WHATSAPP_CANCELLATION_TEMPLATE (default appointment_cancellation), WHATSAPP_TEMPLATE_LANG (default en) · FIREBASE_SERVICE_ACCOUNT (push).
+// Secrets: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM (text) · WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_ACCESS_TOKEN, optional WHATSAPP_REMINDER_TEMPLATE (default appointment_reminder), WHATSAPP_CONFIRMATION_TEMPLATE (default appointment_confirmation), WHATSAPP_CANCELLATION_TEMPLATE (default appointment_cancellation), WHATSAPP_RESCHEDULE_TEMPLATE (default appointment_reschedule), WHATSAPP_DECLINE_TEMPLATE (default appointment_declined), WHATSAPP_TEMPLATE_LANG (default en) · FIREBASE_SERVICE_ACCOUNT (push).
 import {createClient} from 'npm:@supabase/supabase-js@2';
 import {sendPush} from '../_shared/firebase.js';
 import {sendWhatsApp} from '../_shared/whatsapp.js';
@@ -24,7 +24,7 @@ Deno.serve(async req=>{
 
   const sid=Deno.env.get('TWILIO_ACCOUNT_SID'),tok=Deno.env.get('TWILIO_AUTH_TOKEN'),from=Deno.env.get('TWILIO_FROM');
   const sa=serviceAccount();
-  const wa={phoneNumberId:Deno.env.get('WHATSAPP_PHONE_NUMBER_ID')??'',accessToken:Deno.env.get('WHATSAPP_ACCESS_TOKEN')??'',templates:{reminder:Deno.env.get('WHATSAPP_REMINDER_TEMPLATE')||'appointment_reminder',confirmation:Deno.env.get('WHATSAPP_CONFIRMATION_TEMPLATE')||'appointment_confirmation',cancellation:Deno.env.get('WHATSAPP_CANCELLATION_TEMPLATE')||'appointment_cancellation'},lang:Deno.env.get('WHATSAPP_TEMPLATE_LANG')||'en'};
+  const wa={phoneNumberId:Deno.env.get('WHATSAPP_PHONE_NUMBER_ID')??'',accessToken:Deno.env.get('WHATSAPP_ACCESS_TOKEN')??'',templates:{reminder:Deno.env.get('WHATSAPP_REMINDER_TEMPLATE')||'appointment_reminder',confirmation:Deno.env.get('WHATSAPP_CONFIRMATION_TEMPLATE')||'appointment_confirmation',cancellation:Deno.env.get('WHATSAPP_CANCELLATION_TEMPLATE')||'appointment_cancellation',reschedule:Deno.env.get('WHATSAPP_RESCHEDULE_TEMPLATE')||'appointment_reschedule',decline:Deno.env.get('WHATSAPP_DECLINE_TEMPLATE')||'appointment_declined'},lang:Deno.env.get('WHATSAPP_TEMPLATE_LANG')||'en'};
   const channels=[...(sid&&tok&&from?['sms']:[]),...(wa.phoneNumberId&&wa.accessToken?['whatsapp']:[]),...(sa?['push']:[])];
   if(!channels.length){log({outcome:'no_provider_configured'});return J({configured:false,sent:0})}
 
