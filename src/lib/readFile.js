@@ -1,10 +1,10 @@
 /* Turns an uploaded file into the plain-text setup format that importer.js reads.
    .txt  : used as-is
    .csv / .tsv : cells joined with " | "
-   .xlsx / .xls / Google Sheets export : each sheet becomes a section; a sheet named
+   .xlsx / Google Sheets export : each sheet becomes a section; a sheet named
                  "Doctors" or "Answers" sets the section, rows become lines
    .pdf  : text lines; columns split where the layout has a wide gap (best effort) */
-import * as XLSX from 'xlsx';
+import readXlsxFile from 'read-excel-file/browser';
 import * as pdfjs from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
@@ -41,19 +41,19 @@ const sectionFor=name=>{
   return null;
 };
 
-function sheetsToText(wb){
+const cellText=v=>v instanceof Date?v.toISOString().slice(0,10):v;
+function sheetsToText(sheets){
   const out=[];
-  for(const name of wb.SheetNames){
-    const sec=sectionFor(name);
+  for(const {sheet,data} of sheets){
+    const sec=sectionFor(sheet);
     if(sec)out.push(sec);
-    const rows=XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,defval:'',blankrows:false});
-    for(const r of rows){const line=rowLine(r);if(line)out.push(line)}
+    for(const r of data){const line=rowLine(r.map(cellText));if(line)out.push(line)}
   }
   return out.join('\n');
 }
 
 async function pdfToText(buf){
-  const doc=await pdfjs.getDocument({data:buf}).promise;
+  const doc=await pdfjs.getDocument({data:buf,isEvalSupported:false}).promise;
   const lines=[];
   for(let p=1;p<=doc.numPages;p++){
     const page=await (await doc).getPage(p);
@@ -81,10 +81,9 @@ async function pdfToText(buf){
 
 export async function readSetupFile(file){
   const name=file.name.toLowerCase();
-  if(/\.(xlsx|xls)$/.test(name)){
-    const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});
-    return sheetsToText(wb);
-  }
+  if(file.size>10*1024*1024)throw Error('That file is over 10 MB. Split it or save only the sheets you need.');
+  if(name.endsWith('.xls'))throw Error('Save it as .xlsx (Excel: File → Save As → Excel Workbook) and upload that.');
+  if(name.endsWith('.xlsx'))return sheetsToText(await readXlsxFile(file));
   if(name.endsWith('.pdf')){
     return pdfToText(new Uint8Array(await file.arrayBuffer()));
   }

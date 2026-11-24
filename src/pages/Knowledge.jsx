@@ -41,7 +41,7 @@ export default function Knowledge(){
       <p className="route">Paste your schedule, or upload a file: .txt, .csv, Excel (.xlsx), Google Sheets (File → Download → .xlsx or .csv), or PDF. Lines with problems are listed, not skipped silently.</p>
       <textarea rows="7" value={text} maxLength={20000} onChange={e=>setText(e.target.value)} placeholder={EXAMPLE} aria-label="Quick setup text"/>
       <div className="acts">
-        <input type="file" accept=".txt,.csv,.tsv,.xlsx,.xls,.pdf" onChange={readFile} aria-label="Upload schedule file"/>
+        <input type="file" accept=".txt,.csv,.tsv,.xlsx,.pdf" onChange={readFile} aria-label="Upload schedule file"/>
         <button className="btn ghost sm" type="button" onClick={()=>setText(EXAMPLE)}>Use example</button>
         <button className="btn ghost sm" type="button" onClick={()=>setFmt(true)}>Set up with Solara</button>
         <button className="btn ghost sm" type="button" onClick={async()=>{const n=await addStarterAnswers(db,user.id,kb);toast(n?`Added ${n} starter answers`:'Starter answers already added')}}>Add starter answers</button>

@@ -89,7 +89,7 @@ export default function SetupChat({uid,toast,onSaved}){
         <textarea maxLength={4000} rows={input.length>80?4:1} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}}
           placeholder="Tell Solara anything about your clinic, or paste a document…" aria-label="Message to Solara" disabled={busy}/>
         <label className="btn ghost sm" style={{cursor:busy?'default':'pointer'}} title="Upload a file: PDF, Excel, CSV or text">Upload a file
-          <input type="file" accept=".txt,.csv,.tsv,.xlsx,.xls,.pdf,.md" onChange={upload} disabled={busy} hidden/></label>
+          <input type="file" accept=".txt,.csv,.tsv,.xlsx,.pdf,.md" onChange={upload} disabled={busy} hidden/></label>
         <button className="btn sm" disabled={busy||!input.trim()}>Send</button>
       </form>
     </div>

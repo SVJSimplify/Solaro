@@ -35,7 +35,7 @@ export default function SolaraFormat({onImport,onClose,toast}){
         </ol>
         <textarea rows="10" value={text} onChange={e=>setText(e.target.value)} placeholder="Paste your messy document here…" aria-label="Document text" disabled={busy}/>
         <div className="acts">
-          <input type="file" accept=".txt,.csv,.tsv,.xlsx,.xls,.pdf" onChange={readFile} disabled={busy} aria-label="Upload document"/>
+          <input type="file" accept=".txt,.csv,.tsv,.xlsx,.pdf" onChange={readFile} disabled={busy} aria-label="Upload document"/>
           <button className="btn sm" type="button" onClick={run} disabled={busy||!text.trim()}>{busy?'Setting up…':'Set up for me'}</button>
           <button className="btn ghost sm" type="button" onClick={onClose} disabled={busy}>Close</button>
         </div>
